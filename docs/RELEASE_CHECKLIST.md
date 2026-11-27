@@ -11,7 +11,7 @@ Do not publish a Relay release until every required gate below has evidence atta
 - [x] Rerun repeatable load tests at normal and configured-limit workloads on both architectures after the HTTP/2/HTTP/3 change. Three 30-second runs at 50 and 256 clients completed on x86-64 and ARM64 GitHub-hosted Linux VMs on `71810ea`; Relay had no client timeouts, while NGINX emitted read errors at the cap. Raw results are in `docs/perf-results/2026-11-27-github-actions-71810ea-*.txt`. These are diagnostic VM results, not a performance claim.
 - [x] Record three-repeat TLS 1.3 new-connection measurements on both CI architectures on `71810ea`. These are VM measurements; representative physical-host characterization remains open.
 - [ ] Record binary size, idle and loaded RSS, CPU, startup, TLS handshake, latency, and scaling results on representative physical hosts. WSL2 smoke data is available but does not meet the provisional startup or p99-overhead targets.
-- [ ] Resolve the external HTTP/3 client stream-reset report and attach successful interoperability runs before release.
+- [x] Resolve the external HTTP/3 client stream-reset report and attach successful interoperability evidence: curl 8.21.0 negotiated H3, received all 1,024 response bytes, and exited successfully on WSL2 ARM64 after Relay began draining the retained request stream. The regression test covers an upstream early response during an open upload. [Raw smoke output](perf-results/2026-11-27-wsl-arm64-h3-curl-smoke.txt). H3 throughput and native-host performance evidence remain open.
 - [x] Record the first WSL2 ARM64 comparison against Caddy, NGINX, and Apache in `docs/BENCHMARKS.md`; the NGINX HTTP/2 runs were inconsistent and this data is diagnostic only.
 - [ ] An external independent security reviewer has reviewed the release candidate and all findings have a documented disposition.
 - [ ] The release build has a source SBOM, per-binary SHA-256 checksums, and GitHub build provenance attestations. Verify all three from a clean environment.
@@ -39,7 +39,7 @@ The available comparison data is virtualized WSL2 ARM64 output with a local Pyth
 
 ## Latest PR evidence (not release approval)
 
-At PR commit `71810ea`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hashes; dependency audit and fuzz smoke also passed. The benchmark matrix completed three normal and three capped runs plus shutdown-under-load on each architecture; the corrected TLS harness recorded all three TLS 1.3 runs on both. Raw results are committed under `docs/perf-results/`. Clean-environment artifact verification, representative physical-host measurements, HTTP/3 external-client interoperability, and external independent review remain open.
+At PR commit `71810ea`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hashes; dependency audit and fuzz smoke also passed. The benchmark matrix completed three normal and three capped runs plus shutdown-under-load on each architecture; the corrected TLS harness recorded all three TLS 1.3 runs on both. A later local regression and external curl smoke resolved the H3 reset report; CI must rerun on the fix commit. Raw results are committed under `docs/perf-results/`. Clean-environment artifact verification, representative physical-host measurements, H3 throughput, and external independent review remain open.
 
 ## Current release status
 

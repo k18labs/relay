@@ -21,7 +21,7 @@
 - [x] HTTPS upstream with certificate-chain and hostname verification; no bypass or early data.
 - [x] Local transport security integration tests.
 - [x] Negotiate HTTP/2 on TLS/TCP and serve HTTP/3 over QUIC/UDP on the configured numeric port; keep upstream requests on HTTP/1.1 and apply shared routing and bounds.
-- [ ] Resolve external HTTP/3 client stream-reset report and add external-client interoperability evidence.
+- [x] Resolve external HTTP/3 client stream-reset report: Quinn trace identified an unconsumed request receive stream being stopped with code 0 after an early upstream response. Relay now drains the receive side within body limits/timeouts; the early-response regression passes, and curl 8.21.0 received the full 1 KiB body and exited successfully on WSL2 ARM64. Raw output: `docs/perf-results/2026-11-27-wsl-arm64-h3-curl-smoke.txt`. `h2load --h3` still produces zero requests, so H3 throughput remains unmeasured.
 - [x] Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and repeat-build checks on PR commit `71810ea`.
 - [ ] Complete an external independent security review before the first production release.
 

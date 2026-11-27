@@ -23,14 +23,19 @@ async fn start_http_upstream() -> (std::net::SocketAddr, tokio::task::JoinHandle
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let task = tokio::spawn(async move {
-        for index in 0..3 {
+        for index in 0..4 {
             let Ok(Ok((mut stream, _))) =
                 tokio::time::timeout(Duration::from_secs(3), listener.accept()).await
             else {
                 return;
             };
-            if index < 2 {
-                if read_complete_request(&mut stream).await.is_err() {
+            if index < 3 {
+                let request_read = if index == 2 {
+                    read_request_headers(&mut stream).await
+                } else {
+                    read_complete_request(&mut stream).await
+                };
+                if request_read.is_err() {
                     return;
                 }
                 let response_body = if index == 0 {
@@ -86,6 +91,19 @@ async fn read_complete_request(stream: &mut tokio::net::TcpStream) -> std::io::R
             return Ok(request);
         }
     }
+}
+
+async fn read_request_headers(stream: &mut tokio::net::TcpStream) -> std::io::Result<Vec<u8>> {
+    let mut request = Vec::new();
+    let mut buffer = [0; 1024];
+    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+        let count = stream.read(&mut buffer).await?;
+        if count == 0 {
+            return Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
+        }
+        request.extend_from_slice(&buffer[..count]);
+    }
+    Ok(request)
 }
 
 #[tokio::test]
@@ -168,6 +186,39 @@ async fn serves_http3_and_forwards_to_the_configured_upstream() {
     let response = stream.recv_response().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::OK);
     while let Some(_chunk) = stream.recv_data().await.unwrap() {}
+
+    let request = Request::post("https://example.org/early-response")
+        .body(())
+        .unwrap();
+    let mut stream = sender.send_request(request).await.unwrap();
+    stream
+        .send_data(Bytes::from_static(b"first chunk"))
+        .await
+        .unwrap();
+    let (mut send_stream, mut receive_stream) = stream.split();
+    let upload_task = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        send_stream
+            .send_data(Bytes::from_static(b"second chunk"))
+            .await?;
+        send_stream.finish().await
+    });
+    let response = tokio::time::timeout(Duration::from_secs(3), receive_stream.recv_response())
+        .await
+        .expect("early upstream response timed out")
+        .unwrap();
+    assert_eq!(response.status(), http::StatusCode::OK);
+    let mut body = Vec::new();
+    while let Some(mut chunk) = receive_stream.recv_data().await.unwrap() {
+        while chunk.has_remaining() {
+            let part = chunk.chunk();
+            body.extend_from_slice(part);
+            let count = part.len();
+            chunk.advance(count);
+        }
+    }
+    assert_eq!(body, b"ok");
+    upload_task.await.unwrap().unwrap();
 
     let request = Request::post("https://example.org/upload")
         .body(())

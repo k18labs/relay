@@ -75,6 +75,10 @@ The capped runs had median Relay throughput of 3,139.11 req/s on x86-64 and 3,63
 
 The x86-64 binary remains above the provisional 5 MB target and startup remains above 50 ms. NGINX reported client read errors in the configured-cap runs. These hosted VMs are not physical-host evidence and the results do not support a performance-superiority claim.
 
+## HTTP/3 interoperability smoke
+
+The first external curl 8.21.0 probe received the full response body but reported a stream reset. Quinn tracing identified Relay stopping the request receive stream with code 0 when the upstream responded before the request body reached EOF. Relay now drains the retained receive stream under the configured body-size and idle-time limits before completing the response. The regression test covers an upstream early response while the client upload remains open. After the fix, curl negotiated HTTP/3, received the 1,024-byte body, and exited successfully on WSL2 ARM64; see the [raw smoke output](perf-results/2026-11-27-wsl-arm64-h3-curl-smoke.txt). `h2load --h3` still reports zero started requests, so no HTTP/3 throughput number is available. This smoke run does not satisfy native-host performance characterization.
+
 ## Repeatable local smoke comparison
 
 On Linux with `nginx`, `wrk`, Python 3, and a release build of Relay installed, run:

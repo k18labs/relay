@@ -5,8 +5,8 @@ use std::{
     io,
     pin::Pin,
     sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
     time::Duration,
@@ -356,7 +356,7 @@ async fn serve_http<I>(
         Duration::from_millis(state.config.limits.downstream_write_timeout_ms),
     ));
     let service_state = state.clone();
-    let service = service_fn(move |request| forward(request, service_state.clone()));
+    let service = service_fn(move |request| forward(request, service_state.clone(), false));
     let limits = state.config.limits.clone();
     let mut builder = hyper::server::conn::http1::Builder::new();
     builder
@@ -397,7 +397,7 @@ async fn serve_http2<I>(
         Duration::from_millis(state.config.limits.downstream_write_timeout_ms),
     ));
     let service_state = state.clone();
-    let service = service_fn(move |request| forward(request, service_state.clone()));
+    let service = service_fn(move |request| forward(request, service_state.clone(), false));
     let mut builder = hyper::server::conn::http2::Builder::new(TokioExecutor::new());
     builder
         .timer(TokioTimer::new())
@@ -532,20 +532,47 @@ async fn serve_http3_connection(
                 Ok(Some(resolver)) => {
                     let state = state.clone();
                     streams.spawn(async move {
-                        let Ok(Ok((request, stream))) = tokio::time::timeout(
+                        let resolved = tokio::time::timeout(
                             Duration::from_millis(state.config.limits.header_timeout_ms),
                             resolver.resolve_request(),
-                        ).await else { return; };
+                        ).await;
+                        let (request, stream) = match resolved {
+                            Ok(Ok(resolved)) => resolved,
+                            Ok(Err(error)) => {
+                                tracing::debug!(error = %error, "HTTP/3 request resolution failed");
+                                return;
+                            }
+                            Err(_) => {
+                                tracing::debug!("HTTP/3 request resolution timed out");
+                                return;
+                            }
+                        };
                         let (send_stream, receive_stream) = stream.split();
-                        let request = request.map(|()| H3RequestBody::new(receive_stream));
+                        let stream_id = send_stream.send_id();
+                        tracing::debug!(stream_id = %stream_id, "HTTP/3 request accepted");
+                        let receive_stream = Arc::new(Mutex::new(receive_stream));
+                        let received_body_bytes = Arc::new(AtomicUsize::new(0));
+                        let request = request.map(|()| {
+                            H3RequestBody::new(
+                                receive_stream.clone(),
+                                received_body_bytes.clone(),
+                            )
+                        });
                         handle_http3_request(
                             request,
                             send_stream,
+                            receive_stream,
+                            received_body_bytes,
                             state,
                         ).await;
+                        tracing::debug!(stream_id = %stream_id, "HTTP/3 request response completed");
                     });
                 }
-                Ok(None) | Err(_) => break,
+                Ok(None) => break,
+                Err(error) => {
+                    tracing::debug!(error = %error, "HTTP/3 connection accept failed");
+                    break;
+                }
             }
         }
     }
@@ -570,25 +597,58 @@ async fn serve_http3_connection(
 }
 
 struct H3RequestBody<S> {
-    stream: h3::server::RequestStream<S, Bytes>,
+    stream: Arc<Mutex<h3::server::RequestStream<S, Bytes>>>,
+    received_body_bytes: Arc<AtomicUsize>,
     trailers: bool,
     done: bool,
 }
 
-async fn handle_http3_request<S, B>(
+type SharedH3ReceiveStream<S> = Arc<Mutex<h3::server::RequestStream<S, Bytes>>>;
+
+async fn handle_http3_request<S, R, B>(
     request: Request<B>,
     mut stream: h3::server::RequestStream<S, Bytes>,
+    receive_stream: SharedH3ReceiveStream<R>,
+    received_body_bytes: Arc<AtomicUsize>,
     state: ProxyState,
 ) where
     S: h3::quic::SendStream<Bytes> + Send + 'static,
+    R: h3::quic::RecvStream + Send + 'static,
     B: Body<Data = Bytes> + Send + 'static,
     B::Error: Into<BoxError>,
 {
     let write_timeout = Duration::from_millis(state.config.limits.downstream_write_timeout_ms);
-    let response = match forward(request, state).await {
-        Ok(response) => response,
-        Err(never) => match never {},
+    let request_permit = state.request_permits.clone().try_acquire_owned().ok();
+    let mut response = match request_permit {
+        Some(_) => match forward(request, state.clone(), true).await {
+            Ok(response) => response,
+            Err(never) => match never {},
+        },
+        None => simple_response(StatusCode::SERVICE_UNAVAILABLE, false),
     };
+    match drain_http3_request_body(
+        &receive_stream,
+        &received_body_bytes,
+        state.config.limits.max_body_bytes,
+        Duration::from_millis(state.config.limits.body_idle_timeout_ms),
+    )
+    .await
+    {
+        Ok(()) => {}
+        Err(H3BodyDrainError::TooLarge) => {
+            response = simple_response(StatusCode::PAYLOAD_TOO_LARGE, false);
+        }
+        Err(H3BodyDrainError::Stream(error)) => {
+            tracing::debug!(error = %error, "HTTP/3 request body drain failed");
+            stop_http3_request_body(&receive_stream);
+            response = simple_response(StatusCode::BAD_REQUEST, false);
+        }
+        Err(H3BodyDrainError::TimedOut) => {
+            tracing::debug!("HTTP/3 request body drain timed out");
+            stop_http3_request_body(&receive_stream);
+            response = simple_response(StatusCode::REQUEST_TIMEOUT, false);
+        }
+    }
     let (parts, mut body) = response.into_parts();
     match tokio::time::timeout(
         write_timeout,
@@ -647,16 +707,105 @@ async fn handle_http3_request<S, B>(
         }
     }
     match tokio::time::timeout(write_timeout, stream.finish()).await {
-        Ok(Ok(())) => {}
+        Ok(Ok(())) => tracing::debug!("HTTP/3 response stream finished"),
         Ok(Err(error)) => tracing::debug!(error = %error, "HTTP/3 response stream finish failed"),
         Err(_) => tracing::debug!("HTTP/3 response stream finish timed out"),
     }
+    drop(request_permit);
+}
+
+enum H3BodyDrainError {
+    TooLarge,
+    TimedOut,
+    Stream(BoxError),
+}
+
+fn record_http3_body_bytes(received_body_bytes: &AtomicUsize, count: usize) -> usize {
+    let mut current = received_body_bytes.load(Ordering::Relaxed);
+    loop {
+        let next = current.saturating_add(count);
+        match received_body_bytes.compare_exchange_weak(
+            current,
+            next,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => return next,
+            Err(observed) => current = observed,
+        }
+    }
+}
+
+async fn drain_http3_request_body<S>(
+    stream: &SharedH3ReceiveStream<S>,
+    received_body_bytes: &AtomicUsize,
+    max_body_bytes: usize,
+    idle_timeout: Duration,
+) -> Result<(), H3BodyDrainError>
+where
+    S: h3::quic::RecvStream + Send + 'static,
+{
+    if received_body_bytes.load(Ordering::Relaxed) > max_body_bytes {
+        stop_http3_request_body(stream);
+        return Err(H3BodyDrainError::TooLarge);
+    }
+    loop {
+        let data = tokio::time::timeout(
+            idle_timeout,
+            std::future::poll_fn(|cx| {
+                stream
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .poll_recv_data(cx)
+            }),
+        )
+        .await
+        .map_err(|_| H3BodyDrainError::TimedOut)?
+        .map_err(|error| H3BodyDrainError::Stream(Box::new(error)))?;
+        if let Some(data) = data {
+            let total = record_http3_body_bytes(received_body_bytes, data.remaining());
+            if total > max_body_bytes {
+                stop_http3_request_body(stream);
+                return Err(H3BodyDrainError::TooLarge);
+            }
+            continue;
+        }
+
+        loop {
+            let trailers = tokio::time::timeout(
+                idle_timeout,
+                std::future::poll_fn(|cx| {
+                    stream
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .poll_recv_trailers(cx)
+                }),
+            )
+            .await
+            .map_err(|_| H3BodyDrainError::TimedOut)?
+            .map_err(|error| H3BodyDrainError::Stream(Box::new(error)))?;
+            if trailers.is_none() {
+                return Ok(());
+            }
+        }
+    }
+}
+
+fn stop_http3_request_body<S>(stream: &SharedH3ReceiveStream<S>)
+where
+    S: h3::quic::RecvStream + Send + 'static,
+{
+    stream
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .stop_sending(h3::error::Code::H3_REQUEST_CANCELLED);
 }
 
 impl<S> H3RequestBody<S> {
-    fn new(stream: h3::server::RequestStream<S, Bytes>) -> Self {
+    fn new(stream: SharedH3ReceiveStream<S>, received_body_bytes: Arc<AtomicUsize>) -> Self {
         Self {
             stream,
+            received_body_bytes,
             trailers: false,
             done: false,
         }
@@ -681,12 +830,21 @@ where
             return Poll::Ready(None);
         }
         if !this.trailers {
-            match this.stream.poll_recv_data(cx) {
+            let result = this
+                .stream
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .poll_recv_data(cx);
+            match result {
                 Poll::Ready(Ok(Some(mut data))) => {
+                    record_http3_body_bytes(&this.received_body_bytes, data.remaining());
                     let bytes = data.copy_to_bytes(data.remaining());
                     return Poll::Ready(Some(Ok(Frame::data(bytes))));
                 }
-                Poll::Ready(Ok(None)) => this.trailers = true,
+                Poll::Ready(Ok(None)) => {
+                    tracing::debug!("HTTP/3 request body reached end-of-stream");
+                    this.trailers = true;
+                }
                 Poll::Ready(Err(error)) => {
                     this.done = true;
                     return Poll::Ready(Some(Err(Box::new(error))));
@@ -694,12 +852,18 @@ where
                 Poll::Pending => return Poll::Pending,
             }
         }
-        match this.stream.poll_recv_trailers(cx) {
+        let result = this
+            .stream
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .poll_recv_trailers(cx);
+        match result {
             Poll::Ready(Ok(Some(trailers))) => {
                 this.done = true;
                 Poll::Ready(Some(Ok(Frame::trailers(trailers))))
             }
             Poll::Ready(Ok(None)) => {
+                tracing::debug!("HTTP/3 request trailers completed");
                 this.done = true;
                 Poll::Ready(None)
             }
@@ -805,6 +969,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for WriteTimeoutIo<T> {
 async fn forward<B>(
     mut request: Request<B>,
     state: ProxyState,
+    request_permit_preacquired: bool,
 ) -> Result<Response<ProxyBody>, Infallible>
 where
     B: Body<Data = Bytes> + Send + 'static,
@@ -888,8 +1053,13 @@ where
     {
         return Ok(simple_response(StatusCode::PAYLOAD_TOO_LARGE, true));
     }
-    let Ok(request_permit) = state.request_permits.clone().try_acquire_owned() else {
-        return Ok(simple_response(StatusCode::SERVICE_UNAVAILABLE, true));
+    let request_permit = if request_permit_preacquired {
+        None
+    } else {
+        Some(match state.request_permits.clone().try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(_) => return Ok(simple_response(StatusCode::SERVICE_UNAVAILABLE, true)),
+        })
     };
 
     let upstream = match upstream_uri(route, &request) {
@@ -986,7 +1156,7 @@ where
                 limited,
                 Duration::from_millis(config.limits.body_idle_timeout_ms),
                 None,
-                Some(request_permit),
+                request_permit,
             )
             .boxed_unsync();
             let mut response = Response::from_parts(parts, body);

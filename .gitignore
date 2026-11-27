@@ -7,3 +7,4 @@
 !/fuzz/corpus/*/valid.toml
 !/fuzz/corpus/*/hosts.txt
 !/fuzz/corpus/*/headers.txt
+!/fuzz/corpus/http1_server/*

@@ -746,6 +746,7 @@ dependencies = [
  "http",
  "libfuzzer-sys",
  "relay",
+ "tokio",
 ]
 
 [[package]]

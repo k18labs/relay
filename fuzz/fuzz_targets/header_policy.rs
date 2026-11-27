@@ -12,7 +12,9 @@ fuzz_target!(|input: &[u8]| {
         };
         let (name, value) = field.split_at(separator);
         let value = &value[1..];
-        if let (Ok(name), Ok(value)) = (HeaderName::from_bytes(name), HeaderValue::from_bytes(value)) {
+        if let (Ok(name), Ok(value)) =
+            (HeaderName::from_bytes(name), HeaderValue::from_bytes(value))
+        {
             headers.append(name, value);
         }
     }

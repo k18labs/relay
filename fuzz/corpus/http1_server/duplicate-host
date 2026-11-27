@@ -1,0 +1,5 @@
+GET / HTTP/1.1
+Host: example.org
+Host: other.example
+Connection: close
+

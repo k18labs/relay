@@ -11,6 +11,7 @@ cargo-fuzz = true
 http = "1"
 libfuzzer-sys = "0.4"
 relay = { path = ".." }
+tokio = { version = "1", default-features = false, features = ["io-util", "net", "rt", "sync", "time"] }
 
 [[bin]]
 name = "config_routes"
@@ -29,6 +30,13 @@ bench = false
 [[bin]]
 name = "header_policy"
 path = "fuzz_targets/header_policy.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http1_server"
+path = "fuzz_targets/http1_server.rs"
 test = false
 doc = false
 bench = false

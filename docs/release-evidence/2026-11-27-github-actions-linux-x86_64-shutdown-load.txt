@@ -1,0 +1,26 @@
+host=Linux ip-10-0-138-148 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:24:59 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+cpu=Intel(R) Xeon(R) 6975P-C
+logical_cpus=4
+memory_kib=16078424
+relay=relay 0.1.0 (x86_64)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+relay_limits=max_connections=256 max_concurrent_requests=1024
+shutdown_load_duration=30s threads=4 concurrency=256
+Starting 4-thread, 256-client load for graceful-shutdown check (30s).
+graceful_shutdown_under_load=passed
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    46.83ms   18.29ms 195.96ms   92.29%
+    Req/Sec     1.02k   315.39     1.42k    58.33%
+  Latency Distribution
+     50%   42.06ms
+     75%   43.90ms
+     90%   46.09ms
+     99%  126.19ms
+  8523 requests in 2.10s, 9.85MB read
+  Socket errors: connect 0, read 341, write 20241, timeout 0
+Requests/sec:   4049.10
+Transfer/sec:      4.68MB

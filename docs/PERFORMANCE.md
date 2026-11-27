@@ -4,11 +4,34 @@ The one-run ARM64 WSL smoke result is saved in [`perf-results/2026-11-27-kali-ws
 
 The current PR's GitHub Actions matrix also completed one 15-second smoke run on each architecture. Raw outputs are saved for [Linux x86-64](perf-results/2026-11-26-github-actions-linux-x86_64-smoke.txt) and [Linux ARM64](perf-results/2026-11-26-github-actions-linux-aarch64-smoke.txt). Both used 4 threads and 50 connections on 4-vCPU Azure-hosted runners. Relay measured 1,156.14 req/s on x86-64 and 1,155.61 req/s on ARM64; NGINX measured 1,765.04 and 1,857.00 req/s, respectively. These are single-run smoke measurements with a Python threaded upstream, not sustained or release-grade comparisons.
 
+## Repeated Linux VM load results
+
+The PR benchmark workflow completed three 30-second runs at 50 clients and three at Relay's configured 256-connection limit on 4-vCPU GitHub-hosted Linux VMs. Raw outputs include kernel, CPU model, memory, and tool versions: [x86-64 normal](perf-results/2026-11-27-github-actions-linux-x86_64-normal.txt), [x86-64 connection cap](perf-results/2026-11-27-github-actions-linux-x86_64-connection-cap.txt), [ARM64 normal](perf-results/2026-11-27-github-actions-linux-aarch64-normal.txt), and [ARM64 connection cap](perf-results/2026-11-27-github-actions-linux-aarch64-connection-cap.txt).
+
+Median requests/second across the three runs:
+
+| Architecture | Clients | Direct upstream | Relay | NGINX |
+| --- | ---: | ---: | ---: | ---: |
+| x86-64 | 50 | 1,167.78 | 1,159.85 | 2,828.61 |
+| ARM64 | 50 | 1,167.86 | 1,155.91 | 1,877.47 |
+| x86-64 | 256 | 6,100.50 | 5,141.28 | 2,811.52* |
+| ARM64 | 256 | 3,660.53 | 3,221.87 | 1,561.40* |
+
+At 50 clients, the Python upstream limits Relay throughput to about 1,160 requests per second. At 256 clients, NGINX emitted client-side read socket errors in all three runs (*); Relay had no reported `wrk` socket errors or timeouts in those runs. Because the NGINX capped runs had errors and the VM architectures differ, these figures are diagnostic only and do not establish performance parity or superiority.
+
+The workflow also sent SIGTERM during 256-client load on both architectures. Relay exited cleanly inside the 7-second watchdog; the raw results are [x86-64](release-evidence/2026-11-27-github-actions-linux-x86_64-shutdown-load.txt) and [ARM64](release-evidence/2026-11-27-github-actions-linux-aarch64-shutdown-load.txt). `wrk` socket errors in those two files are expected because the test deliberately stops Relay during the run.
+
 Three 30-second WSL ARM64 repetitions at 50 clients and three at the configured 256-connection cap are recorded in [normal-load results](perf-results/2026-11-26-kali-wsl-arm64-load-normal.txt) and [connection-cap results](perf-results/2026-11-26-kali-wsl-arm64-load-connection-cap.txt). At 50 clients Relay varied from 428.53 to 960.25 req/s across the three runs. At 256 clients Relay varied from 369.52 to 1,699.31 req/s; the runs also recorded `wrk` timeouts and socket read errors. The upstream and NGINX results varied substantially too. This host's WSL2 scheduling and Python threaded upstream make these results unsuitable for release performance conclusions.
 
-A separate 256-client WSL test sent SIGTERM during active load and confirmed that Relay exited cleanly within the 7-second watchdog; [raw output](release-evidence/2026-11-27-wsl-arm64-shutdown-load.txt) includes the client-side disconnects caused by stopping the proxy. Cross-architecture shutdown checks and native host measurements remain necessary.
+A separate 256-client WSL test sent SIGTERM during active load and confirmed that Relay exited cleanly within the 7-second watchdog; [raw output](release-evidence/2026-11-27-wsl-arm64-shutdown-load.txt) includes the client-side disconnects caused by stopping the proxy.
 
-The WSL measurements above are smoke and stress observations on an Oryon ARM64 laptop under WSL2 with a Windows-mounted checkout. They are not native-host release evidence. No release-grade binary-size, memory, startup, CPU, TLS-handshake, scaling, or at-limit results are available.
+The WSL measurements above are smoke and stress observations on an Oryon ARM64 laptop under WSL2 with a Windows-mounted checkout, not native-host release evidence. The GitHub results are virtualized cloud VM data, not dedicated physical-host measurements.
+
+## Resource and TLS smoke measurements
+
+After adding a configurable Tokio worker count (default 2, allowed range 1–64), a local WSL2 ARM64 measurement recorded a 4,659,624-byte optimized binary, 85 ms to first successful plaintext HTTP response, and 8,456 KiB idle RSS. During a 15-second 50-client run, `pidstat` sampled Relay at 15–18% CPU and 8,536 KiB RSS. Direct upstream and Relay throughput were 1,078.30 and 1,053.35 requests/second; p99 latency was 51.25 ms direct and 56.09 ms through Relay. A separate TLS 1.3 run measured 90 ms to the first completed handshake, 9,676 KiB idle RSS, and three `openssl s_time` repetitions. Raw outputs are [HTTP/load](perf-results/2026-11-27-wsl-arm64-workers2-normal.txt) and [TLS](perf-results/2026-11-27-wsl-arm64-workers2-tls.txt).
+
+These are single local WSL2 smoke runs, not physical-host release measurements. The observed 4.84 ms p99 difference exceeds the provisional 1 ms target, and the startup observations exceed the provisional 50 ms target; those targets are not met by this evidence. The two-worker default reduces observed idle RSS below the provisional 10 MiB target on this host, while the TLS idle sample is close to that threshold. Confirm all resource figures on supported physical hosts before making a release claim.
 
 ## Repeatable local smoke comparison
 
@@ -21,10 +44,10 @@ DURATION=15s THREADS=4 CONCURRENCY=50 \
   | tee arm64-wsl-smoke.txt
 ```
 
-The harness sends the same fixed 1 KiB response directly from one local Python HTTP server and through Relay and NGINX reverse proxy configurations. It prints the kernel, CPU model, logical CPU count, memory, software versions, and `wrk` latency percentiles and request rates. The service logs and temporary configs are deleted at exit. Change `DURATION`, `THREADS`, and `CONCURRENCY` for repeated load levels. Run at least five repetitions after warm-up and preserve raw stdout separately.
+The harness sends the same fixed 1 KiB response directly from one local Python HTTP server and through Relay and NGINX reverse proxy configurations. It prints the kernel, CPU model, logical CPU count, memory, software versions, binary size, startup time, idle RSS, and `wrk` latency percentiles and request rates. During the Relay run, `pidstat` records CPU and RSS samples. The companion TLS harness measures TLS 1.3 new connections. The service logs and temporary configs are deleted at exit. Change `DURATION`, `THREADS`, and `CONCURRENCY` for repeated load levels. Run at least five repetitions after warm-up and preserve raw stdout separately.
 
 This harness is a local smoke comparison only. The current available environment is Kali Linux ARM64 under WSL, so its timings are affected by virtualization, host scheduling, and the Windows-mounted checkout. No results from that environment should be treated as native-host release evidence. It currently covers Relay and NGINX only; equivalent HAProxy, Caddy, and Pingora runs are outstanding.
 
 ## Release measurements still required
 
-Measure stripped binary size, idle and loaded RSS, startup time, throughput, requests per second, CPU, p50/p95/p99 latency, TLS handshakes, connection scaling, and behavior at configured limits. Compare equivalent reverse-proxy configurations for Relay, NGINX, HAProxy, Caddy, and Pingora on documented native Linux x86-64 and ARM64 hosts. Record exact versions, hardware, kernel, configuration, command lines, raw repeated results, and any host-dependent reproducibility differences. Do not present results from unlike workloads as directly comparable.
+Before making any performance claim, measure stripped binary size, idle and loaded RSS, startup time, throughput, CPU, p50/p95/p99 latency, TLS handshakes, connection scaling, and behavior at configured limits on documented physical Linux x86-64 and ARM64 hosts. Record exact versions, hardware, kernel, configuration, command lines, raw repeated results, and any host-dependent reproducibility differences. The HAProxy, Caddy, and Pingora comparison suite is deferred by the v0.1 scope decision above. Do not present results from unlike workloads as directly comparable.

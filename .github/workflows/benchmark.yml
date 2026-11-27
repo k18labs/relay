@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install benchmark utilities
-        run: sudo apt-get update && sudo apt-get install --yes nginx wrk
+        run: sudo apt-get update && sudo apt-get install --yes nginx openssl wrk sysstat
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.96.0 --profile minimal
       - name: Build optimized Relay
@@ -85,6 +85,12 @@ jobs:
           SHUTDOWN_STRESS=1 SHUTDOWN_LOAD_DURATION=30s DURATION=30s THREADS="$THREADS" \
             CONCURRENCY=256 bash scripts/load/run-linux-local.sh \
             target/release/relay /usr/sbin/nginx | tee "benchmark-${ARCH}-shutdown.txt"
+      - name: Measure TLS 1.3 new-connection throughput
+        env:
+          TLS_DURATION: 15
+        run: |
+          bash scripts/load/run-tls-handshake-linux.sh target/release/relay \
+            | tee "benchmark-${{ matrix.arch }}-tls.txt"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: benchmark-${{ matrix.arch }}

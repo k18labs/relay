@@ -28,8 +28,14 @@ pub struct Config {
 pub struct ServerConfig {
     pub listen: SocketAddr,
     pub max_connections: usize,
+    #[serde(default = "default_worker_count")]
+    pub workers: usize,
     #[serde(default = "tls_enabled_by_default")]
     pub tls: bool,
+}
+
+fn default_worker_count() -> usize {
+    2
 }
 
 fn tls_enabled_by_default() -> bool {
@@ -108,6 +114,11 @@ impl Config {
         if self.server.max_connections > 65_536 {
             return Err(ConfigError::Invalid(
                 "server.max_connections must not exceed 65536".into(),
+            ));
+        }
+        if !(1..=64).contains(&self.server.workers) {
+            return Err(ConfigError::Invalid(
+                "server.workers must be between 1 and 64".into(),
             ));
         }
         if self.routes.is_empty() {

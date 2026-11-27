@@ -3,6 +3,7 @@
 [server]
 listen = "127.0.0.1:8080"
 max_connections = 512
+workers = 2
 tls = false
 
 [[routes]]

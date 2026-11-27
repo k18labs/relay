@@ -6,6 +6,8 @@ Relay reads TOML. Unknown fields are rejected. `relay check --config FILE` parse
 [server]
 listen = "127.0.0.1:8443"
 max_connections = 512
+# Tokio worker threads; defaults to 2 and must be between 1 and 64.
+workers = 2
 # TLS defaults to true. Set false only for local plaintext development.
 tls = true
 

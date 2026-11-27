@@ -1,0 +1,168 @@
+===== normal repetition 1 of 3 =====
+host=Linux runnervmu7lcj 7.0.0-1020-azure #21~24.04.2-Ubuntu SMP PREEMPT Tue Nov 10 01:19:17 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+cpu=Neoverse-N2
+logical_cpus=4
+memory_kib=16324084
+relay=relay 0.1.0 (aarch64)
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=50
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.06ms    1.57ms  43.46ms   99.33%
+    Req/Sec   293.27     25.63   444.00     67.92%
+  Latency Distribution
+     50%   41.00ms
+     75%   41.02ms
+     90%   41.98ms
+     99%   42.03ms
+  35063 requests in 30.02s, 40.54MB read
+Requests/sec:   1167.86
+Transfer/sec:      1.35MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.45ms    0.98ms  90.06ms   96.53%
+    Req/Sec   290.43     21.47   363.00     73.08%
+  Latency Distribution
+     50%   41.06ms
+     75%   41.98ms
+     90%   42.04ms
+     99%   43.00ms
+  34730 requests in 30.03s, 40.15MB read
+Requests/sec:   1156.67
+Transfer/sec:      1.34MB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    24.86ms    1.02ms  37.70ms   80.93%
+    Req/Sec   484.56     15.08   540.00     80.92%
+  Latency Distribution
+     50%   24.80ms
+     75%   25.33ms
+     90%   25.86ms
+     99%   27.36ms
+  57927 requests in 30.02s, 67.89MB read
+Requests/sec:   1929.69
+Transfer/sec:      2.26MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.
+===== normal repetition 2 of 3 =====
+host=Linux runnervmu7lcj 7.0.0-1020-azure #21~24.04.2-Ubuntu SMP PREEMPT Tue Nov 10 01:19:17 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+cpu=Neoverse-N2
+logical_cpus=4
+memory_kib=16324084
+relay=relay 0.1.0 (aarch64)
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=50
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.06ms    1.43ms  43.66ms   99.54%
+    Req/Sec   293.30     31.54   430.00     62.67%
+  Latency Distribution
+     50%   41.00ms
+     75%   41.01ms
+     90%   41.97ms
+     99%   42.03ms
+  35062 requests in 30.02s, 40.53MB read
+Requests/sec:   1167.98
+Transfer/sec:      1.35MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.49ms    0.99ms  60.20ms   95.49%
+    Req/Sec   290.20     17.55   343.00     64.17%
+  Latency Distribution
+     50%   41.07ms
+     75%   41.99ms
+     90%   42.05ms
+     99%   43.03ms
+  34705 requests in 30.02s, 40.12MB read
+Requests/sec:   1155.91
+Transfer/sec:      1.34MB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    25.55ms    1.04ms  35.12ms   77.79%
+    Req/Sec   471.45     15.25   520.00     76.75%
+  Latency Distribution
+     50%   25.51ms
+     75%   26.09ms
+     90%   26.64ms
+     99%   27.91ms
+  56358 requests in 30.02s, 66.06MB read
+Requests/sec:   1877.47
+Transfer/sec:      2.20MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.
+===== normal repetition 3 of 3 =====
+host=Linux runnervmu7lcj 7.0.0-1020-azure #21~24.04.2-Ubuntu SMP PREEMPT Tue Nov 10 01:19:17 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+cpu=Neoverse-N2
+logical_cpus=4
+memory_kib=16324084
+relay=relay 0.1.0 (aarch64)
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=50
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.07ms    1.42ms  44.00ms   99.35%
+    Req/Sec   293.23     31.79   404.00     61.58%
+  Latency Distribution
+     50%   41.00ms
+     75%   41.02ms
+     90%   41.97ms
+     99%   42.03ms
+  35071 requests in 30.04s, 40.55MB read
+Requests/sec:   1167.54
+Transfer/sec:      1.35MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.52ms    1.04ms  68.96ms   93.95%
+    Req/Sec   290.00     17.98   353.00     60.42%
+  Latency Distribution
+     50%   41.09ms
+     75%   41.99ms
+     90%   42.06ms
+     99%   43.07ms
+  34679 requests in 30.03s, 40.09MB read
+Requests/sec:   1155.00
+Transfer/sec:      1.34MB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    26.23ms    0.86ms  31.35ms   75.78%
+    Req/Sec   459.25     15.15   484.00     71.25%
+  Latency Distribution
+     50%   26.20ms
+     75%   26.71ms
+     90%   27.22ms
+     99%   28.28ms
+  54894 requests in 30.02s, 64.34MB read
+Requests/sec:   1828.87
+Transfer/sec:      2.14MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.

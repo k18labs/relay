@@ -31,8 +31,7 @@ enum Command {
     Version,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
         Command::Check { config } => {
@@ -63,16 +62,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 None
             };
-            let listener = TcpListener::bind(config.server.listen).await?;
-            tracing::info!(address = %listener.local_addr()?, tls = config.server.tls, "Relay listening");
-            proxy::serve_with_tls(
-                listener,
-                config,
-                server_tls,
-                upstream_tls,
-                shutdown_signal(),
-            )
-            .await?;
+            let workers = config.server.workers;
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(workers)
+                .enable_all()
+                .build()?
+                .block_on(async move {
+                    let listener = TcpListener::bind(config.server.listen).await?;
+                    tracing::info!(address = %listener.local_addr()?, tls = config.server.tls, workers, "Relay listening");
+                    proxy::serve_with_tls(
+                        listener,
+                        config,
+                        server_tls,
+                        upstream_tls,
+                        shutdown_signal(),
+                    )
+                    .await
+                })?;
         }
     }
     Ok(())

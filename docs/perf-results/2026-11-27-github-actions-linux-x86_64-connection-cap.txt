@@ -1,0 +1,171 @@
+===== connection-cap repetition 1 of 3 =====
+host=Linux ip-10-0-138-148 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:24:59 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+cpu=Intel(R) Xeon(R) 6975P-C
+logical_cpus=4
+memory_kib=16078424
+relay=relay 0.1.0 (x86_64)
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=256
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.92ms    3.88ms 249.94ms   99.35%
+    Req/Sec     1.54k    55.65     1.81k    87.68%
+  Latency Distribution
+     50%   41.97ms
+     75%   42.02ms
+     90%   43.00ms
+     99%   44.99ms
+  183623 requests in 30.10s, 212.29MB read
+Requests/sec:   6100.50
+Transfer/sec:      7.05MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    49.84ms   18.50ms 208.30ms   90.49%
+    Req/Sec     1.29k   116.15     1.58k    91.16%
+  Latency Distribution
+     50%   43.05ms
+     75%   45.03ms
+     90%   65.99ms
+     99%  117.78ms
+  154348 requests in 30.02s, 178.44MB read
+Requests/sec:   5141.28
+Transfer/sec:      5.94MB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    84.03ms    5.76ms 116.09ms   75.89%
+    Req/Sec   706.28    131.71     1.19k    66.25%
+  Latency Distribution
+     50%   84.47ms
+     75%   87.56ms
+     90%   89.82ms
+     99%  100.57ms
+  84381 requests in 30.01s, 98.90MB read
+  Socket errors: connect 0, read 1567592, write 0, timeout 0
+Requests/sec:   2811.52
+Transfer/sec:      3.30MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.
+===== connection-cap repetition 2 of 3 =====
+host=Linux ip-10-0-138-148 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:24:59 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+cpu=Intel(R) Xeon(R) 6975P-C
+logical_cpus=4
+memory_kib=16078424
+relay=relay 0.1.0 (x86_64)
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=256
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    42.02ms    4.03ms 243.73ms   99.49%
+    Req/Sec     1.53k    57.65     1.72k    87.92%
+  Latency Distribution
+     50%   41.98ms
+     75%   42.03ms
+     90%   43.01ms
+     99%   45.00ms
+  182918 requests in 30.01s, 211.47MB read
+Requests/sec:   6095.74
+Transfer/sec:      7.05MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    52.16ms   23.18ms 216.00ms   88.53%
+    Req/Sec     1.26k   124.82     1.61k    92.58%
+  Latency Distribution
+     50%   43.14ms
+     75%   45.50ms
+     90%   79.80ms
+     99%  135.91ms
+  150613 requests in 30.02s, 174.12MB read
+Requests/sec:   5017.13
+Transfer/sec:      5.80MB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    84.11ms    6.95ms 156.08ms   78.66%
+    Req/Sec   705.57    126.96     1.05k    68.36%
+  Latency Distribution
+     50%   84.22ms
+     75%   88.10ms
+     90%   90.63ms
+     99%  102.72ms
+  84229 requests in 30.02s, 98.72MB read
+  Socket errors: connect 0, read 1564859, write 0, timeout 0
+Requests/sec:   2805.65
+Transfer/sec:      3.29MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.
+===== connection-cap repetition 3 of 3 =====
+host=Linux ip-10-0-138-148 7.0.0-1014-aws #14~24.04.1-Ubuntu SMP PREEMPT Fri Sep 18 21:24:59 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+cpu=Intel(R) Xeon(R) 6975P-C
+logical_cpus=4
+memory_kib=16078424
+relay=relay 0.1.0 (x86_64)
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=256
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.96ms    4.00ms 247.44ms   99.23%
+    Req/Sec     1.53k    61.57     1.70k    87.58%
+  Latency Distribution
+     50%   41.97ms
+     75%   42.02ms
+     90%   43.00ms
+     99%   45.00ms
+  183157 requests in 30.01s, 211.75MB read
+Requests/sec:   6103.43
+Transfer/sec:      7.06MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    50.31ms   19.64ms 356.43ms   90.39%
+    Req/Sec     1.30k    88.28     1.49k    87.25%
+  Latency Distribution
+     50%   43.07ms
+     75%   45.07ms
+     90%   67.56ms
+     99%  118.70ms
+  155576 requests in 30.02s, 179.86MB read
+Requests/sec:   5181.57
+Transfer/sec:      5.99MB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    83.41ms    6.20ms 131.74ms   74.71%
+    Req/Sec   714.08    125.80     1.05k    66.42%
+  Latency Distribution
+     50%   83.75ms
+     75%   86.95ms
+     90%   90.14ms
+     99%   96.23ms
+  85323 requests in 30.02s, 100.00MB read
+  Socket errors: connect 0, read 1551712, write 0, timeout 0
+Requests/sec:   2841.93
+Transfer/sec:      3.33MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.

@@ -16,6 +16,25 @@ upstream = "http://127.0.0.1:3000"
 fn accepts_a_valid_configuration() {
     let config = Config::parse(VALID).expect("valid config");
     assert_eq!(config.routes.len(), 1);
+    assert_eq!(config.server.workers, 2);
+}
+
+#[test]
+fn accepts_an_explicit_worker_count_within_bounds() {
+    let input = VALID.replace("max_connections = 32", "max_connections = 32\nworkers = 4");
+    let config = Config::parse(&input).expect("valid worker count");
+    assert_eq!(config.server.workers, 4);
+}
+
+#[test]
+fn rejects_worker_counts_outside_supported_bounds() {
+    for workers in [0, 65] {
+        let input = VALID.replace(
+            "max_connections = 32",
+            &format!("max_connections = 32\nworkers = {workers}"),
+        );
+        assert!(Config::parse(&input).is_err(), "workers={workers}");
+    }
 }
 
 #[test]

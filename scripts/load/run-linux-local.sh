@@ -8,6 +8,7 @@ fi
 relay_bin=$(realpath "$1")
 nginx_bin=$(realpath "$2")
 command -v wrk >/dev/null
+command -v pidstat >/dev/null
 command -v python3 >/dev/null
 
 duration=${DURATION:-15s}
@@ -19,12 +20,14 @@ nginx_pid=
 upstream_pid=
 load_pid=
 shutdown_watchdog=
+monitor_pid=
 cleanup() {
   [[ -z "$relay_pid" ]] || kill "$relay_pid" 2>/dev/null || true
   [[ -z "$nginx_pid" ]] || kill "$nginx_pid" 2>/dev/null || true
   [[ -z "$upstream_pid" ]] || kill "$upstream_pid" 2>/dev/null || true
   [[ -z "$load_pid" ]] || kill "$load_pid" 2>/dev/null || true
   [[ -z "$shutdown_watchdog" ]] || kill "$shutdown_watchdog" 2>/dev/null || true
+  [[ -z "$monitor_pid" ]] || kill "$monitor_pid" 2>/dev/null || true
   wait 2>/dev/null || true
   if [[ "${KEEP_TMP:-0}" == 1 ]]; then
     echo "retained benchmark files: $tmp" >&2
@@ -91,6 +94,7 @@ python3 "$tmp/server.py" "$tmp/www" >"$tmp/logs/upstream.log" 2>&1 &
 upstream_pid=$!
 "$nginx_bin" -p "$tmp/" -c nginx.conf -g 'daemon off;' >"$tmp/logs/nginx.log" 2>&1 &
 nginx_pid=$!
+relay_started_at_ns=$(date +%s%N)
 RUST_LOG=${RUST_LOG:-warn} "$relay_bin" run --config "$tmp/relay.toml" >"$tmp/logs/relay.log" 2>&1 &
 relay_pid=$!
 
@@ -99,7 +103,7 @@ wait_for() {
   for _ in $(seq 1 100); do
     if curl --silent --fail -H 'Host: example.org' "$url" >/dev/null; then return 0; fi
     if ! kill -0 "$pid" 2>/dev/null; then break; fi
-    sleep 0.1
+    sleep 0.01
   done
   echo "$service did not become ready; log follows:" >&2
   cat "$tmp/logs/$service.log" >&2
@@ -108,6 +112,10 @@ wait_for() {
 wait_for upstream http://127.0.0.1:18081/bench.txt "$upstream_pid"
 wait_for relay http://127.0.0.1:18082/bench.txt "$relay_pid"
 wait_for nginx http://127.0.0.1:18083/bench.txt "$nginx_pid"
+relay_ready_at_ns=$(date +%s%N)
+relay_startup_to_http_ready_ms=$(((relay_ready_at_ns - relay_started_at_ns) / 1000000))
+relay_binary_bytes=$(stat --printf='%s' "$relay_bin")
+relay_idle_rss_kib=$(awk '/^VmRSS:/ {print $2}' "/proc/$relay_pid/status")
 
 rustc_bin=$(command -v rustc || true)
 if [[ -z "$rustc_bin" ]] && command -v rustup >/dev/null; then
@@ -121,6 +129,9 @@ if [[ "${SHUTDOWN_STRESS:-0}" == 1 ]]; then
   echo "logical_cpus=$(nproc)"
   echo "memory_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
   echo "relay=$($relay_bin version)"
+  echo "relay_binary_bytes=$relay_binary_bytes"
+  echo "relay_startup_to_http_ready_ms=$relay_startup_to_http_ready_ms"
+  echo "relay_idle_rss_kib=$relay_idle_rss_kib"
   echo "wrk=$(wrk -v 2>&1 | head -1)"
   echo "python=$(python3 --version 2>&1)"
   if [[ -z "$rustc_bin" ]]; then
@@ -175,6 +186,9 @@ echo "cpu=$(lscpu | awk -F: '/Model name/ {sub(/^ +/, "", $2); print $2; exit}')
 echo "logical_cpus=$(nproc)"
 echo "memory_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
 echo "relay=$($relay_bin version)"
+echo "relay_binary_bytes=$relay_binary_bytes"
+echo "relay_startup_to_http_ready_ms=$relay_startup_to_http_ready_ms"
+echo "relay_idle_rss_kib=$relay_idle_rss_kib"
 echo "nginx=$($nginx_bin -v 2>&1)"
 echo "wrk=$(wrk -v 2>&1 | head -1)"
 echo "python=$(python3 --version 2>&1)"
@@ -185,7 +199,35 @@ echo "upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopba
 echo "Upstream sanity run:"
 wrk -t "$threads" -c "$concurrency" -d "$duration" --latency -H 'Host: example.org' http://127.0.0.1:18081/bench.txt
 echo "Relay reverse-proxy run:"
-wrk -t "$threads" -c "$concurrency" -d "$duration" --latency -H 'Host: example.org' http://127.0.0.1:18082/bench.txt
+duration_seconds=${duration%s}
+if [[ ! "$duration_seconds" =~ ^[1-9][0-9]*$ ]]; then
+  echo "pidstat sampling requires a duration specified in whole seconds, such as 30s." >&2
+  exit 2
+fi
+pidstat -h -u -r -p "$relay_pid" 1 "$duration_seconds" >"$tmp/logs/relay-pidstat.log" 2>&1 &
+monitor_pid=$!
+wrk -t "$threads" -c "$concurrency" -d "$duration" --latency \
+  -H 'Host: example.org' http://127.0.0.1:18082/bench.txt \
+  >"$tmp/logs/relay-wrk.log" 2>&1 &
+load_pid=$!
+set +e
+wait "$load_pid"
+wrk_status=$?
+wait "$monitor_pid"
+monitor_status=$?
+set -e
+load_pid=
+monitor_pid=
+cat "$tmp/logs/relay-wrk.log"
+echo "Relay CPU and RSS samples from pidstat:"
+cat "$tmp/logs/relay-pidstat.log"
+if [[ "$monitor_status" -ne 0 ]]; then
+  echo "pidstat failed with status $monitor_status." >&2
+  exit "$monitor_status"
+fi
+if [[ "$wrk_status" -ne 0 ]]; then
+  exit "$wrk_status"
+fi
 echo "NGINX reverse-proxy run:"
 wrk -t "$threads" -c "$concurrency" -d "$duration" --latency http://127.0.0.1:18083/bench.txt
 echo "Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence."

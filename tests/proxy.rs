@@ -123,7 +123,7 @@ async fn request_failure_logs_exclude_sensitive_request_values() {
         .with_max_level(tracing::Level::DEBUG)
         .with_writer(writer)
         .finish();
-    let _subscriber = tracing::subscriber::set_default(&subscriber);
+    let _subscriber = tracing::subscriber::set_default(subscriber);
 
     let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let upstream_addr = upstream.local_addr().unwrap();

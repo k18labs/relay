@@ -20,12 +20,12 @@ jobs:
           cargo +nightly-2026-11-25 install cargo-fuzz --version 0.13.2 --locked
       - name: Build fuzz targets
         run: |
-          for target in config_routes host_normalization header_policy http1_server http2_server; do
+          for target in config_routes host_normalization header_policy http1_server http2_server http3_server; do
             cargo +nightly-2026-11-25 fuzz build "$target" --fuzz-dir fuzz
           done
       - name: Bounded fuzz smoke
         run: |
-          for target in config_routes host_normalization header_policy http1_server http2_server; do
+          for target in config_routes host_normalization header_policy http1_server http2_server http3_server; do
             cargo +nightly-2026-11-25 fuzz run "$target" --fuzz-dir fuzz -- -max_total_time=30 -max_len=65536 -timeout=5
           done
       - name: Save crash artifacts

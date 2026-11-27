@@ -1,0 +1,12 @@
+Relay HTTP/3 client-stack fuzz smoke
+Date: 2026-11-27
+Environment: WSL2 ARM64; cargo-fuzz 0.13.2; nightly-2026-11-25; AArch64 Linux target
+Command: cargo +nightly-2026-11-25 fuzz run http3_server --fuzz-dir fuzz -- -max_total_time=30 -max_len=65536 -timeout=5
+Corpus: 3 tracked seeds (normal request, canceled request, SETTINGS boundary)
+Result: 117 executions in 33 seconds; 17,636 coverage edges; 21,773 features; maximum reported RSS 151 MiB; no crash or timeout.
+
+The harness uses h3 and Quinn to generate SETTINGS and grease frames,
+requests, body data, and stream cancellation against Relay's QUIC listener.
+This is a bounded local client-stack smoke, not malformed raw HTTP/3 control-
+frame coverage or release acceptance. The scheduled GitHub Actions run remains
+pending.

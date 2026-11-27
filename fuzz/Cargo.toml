@@ -9,8 +9,12 @@ license = "Apache-2.0"
 cargo-fuzz = true
 
 [dependencies]
+bytes = "1"
+h3 = { version = "0.0.8", default-features = false }
+h3-quinn = { version = "0.0.10", default-features = false }
 http = "1"
 libfuzzer-sys = "0.4"
+quinn = { version = "0.11.11", default-features = false, features = ["runtime-tokio", "rustls-aws-lc-rs"] }
 relay = { path = "..", version = "0.1.0" }
 rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "std"] }
 tokio = { version = "1", default-features = false, features = ["io-util", "net", "rt", "sync", "time"] }
@@ -47,6 +51,13 @@ bench = false
 [[bin]]
 name = "http2_server"
 path = "fuzz_targets/http2_server.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http3_server"
+path = "fuzz_targets/http3_server.rs"
 test = false
 doc = false
 bench = false

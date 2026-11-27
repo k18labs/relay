@@ -10,3 +10,6 @@
 !/fuzz/corpus/http1_server/*
 !/fuzz/corpus/http2_server/h2-get-request
 !/fuzz/corpus/http2_server/h2-reset-stream
+!/fuzz/corpus/http3_server/h3-normal-request
+!/fuzz/corpus/http3_server/h3-cancel-request
+!/fuzz/corpus/http3_server/h3-settings-boundary

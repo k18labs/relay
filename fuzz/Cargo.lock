@@ -743,8 +743,12 @@ dependencies = [
 name = "relay-fuzz"
 version = "0.0.0"
 dependencies = [
+ "bytes",
+ "h3",
+ "h3-quinn",
  "http",
  "libfuzzer-sys",
+ "quinn",
  "relay",
  "rustls",
  "tokio",

@@ -11,7 +11,7 @@ Relay is a lightweight, security-focused HTTP reverse proxy written in Rust. The
 - Streaming request and response bodies; bounded connections, requests, handshakes, headers, bodies, upstream idle pool, timeouts, and shutdown.
 - Hop-by-hop and untrusted forwarding header removal; `CONNECT` and upgrades rejected.
 
-This is an early development implementation, not a release candidate. Current PR Linux builds and bounded fuzz/load smoke data exist, but release-grade sustained performance evidence, independent security review, SBOM, provenance, repeat-build evidence, and signed release artifacts remain outstanding.
+This is an early development implementation, not a release candidate. PR commit `285143c` passed Linux x86-64 and ARM64 CI, bounded fuzz smoke, dependency checks, and hosted-VM load benchmarks. Release-grade physical-host performance evidence, independent security review, clean tagged-artifact verification, and signed release artifacts remain outstanding.
 
 ## Product requirements
 

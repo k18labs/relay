@@ -1,0 +1,30 @@
+host=Linux runnervm0j63q 7.0.0-1020-azure #21~24.04.2-Ubuntu SMP PREEMPT Tue Nov 10 01:36:36 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+cpu=AMD EPYC 7763 64-Core Processor
+logical_cpus=4
+memory_kib=16367496
+relay=relay 0.1.0 (x86_64)
+relay_binary_bytes=7854952
+relay_startup_to_http_ready_ms=79
+relay_idle_rss_kib=6740
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+relay_limits=max_connections=256 max_concurrent_requests=1024
+shutdown_load_duration=30s threads=4 concurrency=256
+Starting 4-thread, 256-client load for graceful-shutdown check (30s).
+graceful_shutdown_under_load=passed
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   196.18ms  334.56ms   1.96s    88.01%
+    Req/Sec   756.44    159.22     1.12k    79.76%
+  Latency Distribution
+     50%   59.25ms
+     75%   89.81ms
+     90%  642.74ms
+     99%    1.61s 
+  6331 requests in 2.11s, 7.32MB read
+  Socket errors: connect 0, read 253, write 2926, timeout 0
+  Non-2xx or 3xx responses: 1
+Requests/sec:   2994.73
+Transfer/sec:      3.46MB

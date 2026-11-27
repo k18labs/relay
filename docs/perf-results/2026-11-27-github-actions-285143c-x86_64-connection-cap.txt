@@ -38,7 +38,7 @@ Running 30s test @ http://127.0.0.1:18082/bench.txt
      50%   59.88ms
      75%   85.04ms
      90%  669.80ms
-     99%    1.11s 
+     99%    1.11s
   93988 requests in 30.04s, 108.66MB read
 Requests/sec:   3129.14
 Transfer/sec:      3.62MB
@@ -191,7 +191,7 @@ Running 30s test @ http://127.0.0.1:18082/bench.txt
      50%   58.06ms
      75%   85.84ms
      90%  656.99ms
-     99%    1.07s 
+     99%    1.07s
   94621 requests in 30.03s, 109.39MB read
 Requests/sec:   3150.65
 Transfer/sec:      3.64MB
@@ -343,7 +343,7 @@ Running 30s test @ http://127.0.0.1:18082/bench.txt
      50%   58.03ms
      75%   85.88ms
      90%  647.55ms
-     99%    1.05s 
+     99%    1.05s
   94324 requests in 30.04s, 109.05MB read
 Requests/sec:   3140.43
 Transfer/sec:      3.63MB

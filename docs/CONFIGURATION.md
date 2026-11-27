@@ -42,7 +42,7 @@ upstream = "https://127.0.0.1:3000"
 
 TLS uses TLS 1.3. When enabled, both certificate and private-key paths are required. Upstream HTTPS uses built-in WebPKI roots plus optional PEM trust roots, and validates the certificate chain and hostname. Relative paths are resolved from the process working directory. `server.tls = false` disables inbound TLS and does not accept inbound TLS credentials.
 
-With inbound TLS enabled, Relay negotiates HTTP/1.1 or HTTP/2 over the configured TCP listener and HTTP/3 over QUIC/UDP on the same numeric port. The UDP socket must be available at startup. `max_concurrent_streams_per_connection` bounds HTTP/2 and HTTP/3 streams and must be between 1 and 1024. One curl external-client smoke run completed after the early-response stream fix; broader HTTP/3 interoperability and throughput remain under validation. See [benchmark notes](BENCHMARKS.md).
+With inbound TLS enabled, Relay negotiates HTTP/1.1 or HTTP/2 over the configured TCP listener and HTTP/3 over QUIC/UDP on the same numeric port. The UDP socket must be available at startup. `max_concurrent_streams_per_connection` bounds HTTP/2 and HTTP/3 streams and must be between 1 and 1024. Curl external-client smoke and diagnostic throughput runs completed after the early-response stream fix; broader interoperability and native-host performance remain under validation. See [benchmark notes](BENCHMARKS.md).
 
 Route hosts are case-insensitive DNS names or IPv4 literals; a final DNS dot is ignored. Paths are absolute prefixes matched on segment boundaries (`/api` matches `/api/x`, not `/apix`). The longest matching path wins. Duplicate normalized host/path pairs are rejected. Upstreams must be HTTP or HTTPS origins with no credentials, path, or query.
 

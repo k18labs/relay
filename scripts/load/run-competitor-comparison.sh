@@ -9,6 +9,9 @@ REPETITIONS="${REPETITIONS:-3}"
 THREADS="${THREADS:-4}"
 CLIENTS="${CLIENTS:-50}"
 STREAMS="${STREAMS:-10}"
+H3_REQUESTS="${H3_REQUESTS:-1000}"
+H3_WARM_UP_REQUESTS="${H3_WARM_UP_REQUESTS:-100}"
+PORT_OFFSET="${PORT_OFFSET:-0}"
 PROTOCOLS="${PROTOCOLS:-h1 h2}"
 RESULTS="${RESULTS:-$ROOT/competitor-benchmark.txt}"
 
@@ -18,6 +21,15 @@ RESULTS="${RESULTS:-$ROOT/competitor-benchmark.txt}"
 [[ "$THREADS" =~ ^([1-9]|1[0-6])$ ]]
 [[ "$CLIENTS" =~ ^([1-9][0-9]?|100)$ ]]
 [[ "$STREAMS" =~ ^([1-9][0-9]?|100)$ ]]
+[[ "$H3_REQUESTS" =~ ^([1-9][0-9]{0,3}|10000)$ ]]
+[[ "$H3_WARM_UP_REQUESTS" =~ ^([0-9]{1,4}|10000)$ ]]
+[[ "$PORT_OFFSET" =~ ^([0-9]{1,4}|[1-3][0-9]{4}|40000)$ ]]
+
+UPSTREAM_PORT=$((18000 + PORT_OFFSET))
+RELAY_PORT=$((18443 + PORT_OFFSET))
+CADDY_PORT=$((18444 + PORT_OFFSET))
+NGINX_PORT=$((18445 + PORT_OFFSET))
+APACHE_PORT=$((18446 + PORT_OFFSET))
 
 for command in python3 openssl nginx apache2 caddy h2load curl; do
   command -v "$command" >/dev/null || { echo "missing required benchmark tool: $command" >&2; exit 1; }
@@ -42,7 +54,7 @@ KEY="$ROOT/tests/fixtures/tls/localhost-key.pem"
 CA="$ROOT/tests/fixtures/tls/test-ca.pem"
 export SSL_CERT_FILE="$CA"
 
-cat >"$TMP/upstream.py" <<'PY'
+cat >"$TMP/upstream.py" <<PY
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PAYLOAD = b"x" * 1024
@@ -58,12 +70,12 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         pass
 
-ThreadingHTTPServer(("127.0.0.1", 18000), Handler).serve_forever()
+ThreadingHTTPServer(("127.0.0.1", $UPSTREAM_PORT), Handler).serve_forever()
 PY
 
 cat >"$TMP/relay.toml" <<EOF
 [server]
-listen = "127.0.0.1:18443"
+listen = "127.0.0.1:$RELAY_PORT"
 max_connections = 512
 workers = 2
 
@@ -74,16 +86,16 @@ private_key = "$KEY"
 [[routes]]
 host = "localhost"
 path = "/"
-upstream = "http://127.0.0.1:18000"
+upstream = "http://127.0.0.1:$UPSTREAM_PORT"
 EOF
 
 cat >"$TMP/Caddyfile" <<EOF
 {
 	admin off
 }
-https://localhost:18444 {
+https://localhost:$CADDY_PORT {
 	tls $CERT $KEY
-	reverse_proxy 127.0.0.1:18000
+	reverse_proxy 127.0.0.1:$UPSTREAM_PORT
 }
 EOF
 
@@ -100,16 +112,16 @@ http {
     uwsgi_temp_path $TMP/uwsgi_temp;
     access_log off;
     server {
-        listen 127.0.0.1:18445 ssl;
-        listen 127.0.0.1:18445 quic reuseport;
+        listen 127.0.0.1:$NGINX_PORT ssl;
+        listen 127.0.0.1:$NGINX_PORT quic reuseport;
         http2 on;
         http3 on;
         ssl_certificate $CERT;
         ssl_certificate_key $KEY;
         ssl_protocols TLSv1.2 TLSv1.3;
-        add_header Alt-Svc 'h3=":18445"; ma=86400' always;
+        add_header Alt-Svc 'h3=":$NGINX_PORT"; ma=86400' always;
         location / {
-            proxy_pass http://127.0.0.1:18000;
+            proxy_pass http://127.0.0.1:$UPSTREAM_PORT;
             proxy_set_header Host localhost;
         }
     }
@@ -119,7 +131,7 @@ EOF
 cat >"$TMP/apache.conf" <<EOF
 ServerRoot /etc/apache2
 PidFile $TMP/apache.pid
-Listen 127.0.0.1:18446
+Listen 127.0.0.1:$APACHE_PORT
 LoadModule mpm_event_module /usr/lib/apache2/modules/mod_mpm_event.so
 LoadModule authz_core_module /usr/lib/apache2/modules/mod_authz_core.so
 LoadModule authz_host_module /usr/lib/apache2/modules/mod_authz_host.so
@@ -132,15 +144,15 @@ ServerName localhost
 ErrorLog $TMP/apache-error.log
 LogLevel warn
 Protocols h2 http/1.1
-<VirtualHost 127.0.0.1:18446>
+<VirtualHost 127.0.0.1:$APACHE_PORT>
     ServerName localhost
     SSLEngine on
     SSLCertificateFile $CERT
     SSLCertificateKeyFile $KEY
     SSLProtocol TLSv1.2 TLSv1.3
     ProxyPreserveHost On
-    ProxyPass / http://127.0.0.1:18000/
-    ProxyPassReverse / http://127.0.0.1:18000/
+    ProxyPass / http://127.0.0.1:$UPSTREAM_PORT/
+    ProxyPassReverse / http://127.0.0.1:$UPSTREAM_PORT/
     <Location />
         Require all granted
     </Location>
@@ -156,7 +168,7 @@ CPU="${CPU:-not reported by WSL2 guest}"
   echo "cpu=$CPU"
   echo "logical_cpus=$(getconf _NPROCESSORS_ONLN)"
   echo "memory=$(awk '/MemTotal/ {print $2 " kB"}' /proc/meminfo)"
-  echo "duration=$DURATION warm_up=$WARM_UP repetitions=$REPETITIONS threads=$THREADS total_inflight=$CLIENTS h2_h3_connections=$(( (CLIENTS + STREAMS - 1) / STREAMS )) streams_per_connection=$STREAMS"
+  echo "protocols=$PROTOCOLS h1_h2_duration=$DURATION h1_h2_warm_up=$WARM_UP repetitions=$REPETITIONS h1_h2_threads=$THREADS h1_h2_clients=$CLIENTS h2_streams_per_connection=$STREAMS h3_requests=$H3_REQUESTS h3_warm_up_requests=$H3_WARM_UP_REQUESTS h3_max_parallel=$CLIENTS port_offset=$PORT_OFFSET"
   echo "relay=$($RELAY_BIN version)"
   echo "nginx=$(nginx -v 2>&1)"
   echo "caddy=$(caddy version)"
@@ -185,7 +197,7 @@ wait_http1() {
   return 1
 }
 
-for port in 18443 18444 18445 18446; do wait_http1 "$port"; done
+for port in "$RELAY_PORT" "$CADDY_PORT" "$NGINX_PORT" "$APACHE_PORT"; do wait_http1 "$port"; done
 
 check_protocol() {
   local server="$1" mode="$2" port="$3" actual expected output curl_status
@@ -219,12 +231,16 @@ benchmark_mode() {
   for repetition in $(seq 1 "$REPETITIONS"); do
     {
       echo "===== server=$server protocol=$mode repetition=$repetition of $REPETITIONS ====="
-      echo "h2load -D $DURATION --warm-up-time $WARM_UP -c $connections -t $THREADS -m $streams"
+      if [[ "$mode" == h3 ]]; then
+        echo "curl --parallel --parallel-max $CLIENTS --http3-only requests=$H3_REQUESTS"
+      else
+        echo "h2load -D $DURATION --warm-up-time $WARM_UP -c $connections -t $THREADS -m $streams"
+      fi
     } | tee -a "$RESULTS"
     case "$mode" in
       h1) h2load --h1 -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" >"$TMP/h2load.out" 2>&1 ;;
       h2) h2load --alpn-list=h2 -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" >"$TMP/h2load.out" 2>&1 ;;
-      h3) h2load --h3 --connect-to="127.0.0.1:$port" -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" >"$TMP/h2load.out" 2>&1 ;;
+      h3) benchmark_http3_curl "$server" "$port" "$repetition" || return 1; continue ;;
     esac || { cat "$TMP/h2load.out" | tee -a "$RESULTS"; return 1; }
     cat "$TMP/h2load.out" >>"$RESULTS"
     if ! grep -Eq 'requests: [0-9]+ total, [0-9]+ started, [0-9]+ done, [1-9][0-9]* succeeded, 0 failed, 0 errored, 0 timeout' "$TMP/h2load.out"; then
@@ -234,7 +250,71 @@ benchmark_mode() {
   done
 }
 
-for entry in relay:18443 caddy:18444 nginx:18445 apache:18446; do
+curl_h3_transfers() {
+  local port="$1" count="$2" output_file="$3" index
+  local -a args=(--parallel --parallel-immediate --parallel-max "$CLIENTS")
+  for ((index = 1; index <= count; index++)); do
+    if ((index > 1)); then args+=(--next); fi
+    args+=(--http3-only --insecure --silent --show-error --output /dev/null
+      --write-out '%{http_code},%{time_total},%{size_download}\n'
+      --url "https://localhost:$port/bench")
+  done
+  local status=0
+  curl "${args[@]}" >"$output_file" || status=$?
+  return "$status"
+}
+
+benchmark_http3_curl() {
+  local server="$1" port="$2" repetition="$3" start_ns end_ns elapsed curl_status=0
+  local warmup_file="$TMP/h3-warmup.csv" results_file="$TMP/h3-results.csv"
+  if ((H3_WARM_UP_REQUESTS > 0)); then
+    curl_h3_transfers "$port" "$H3_WARM_UP_REQUESTS" "$warmup_file" || {
+      echo "benchmark_error server=$server protocol=h3 reason=warmup_failed" | tee -a "$RESULTS" >&2
+      return 1
+    }
+  fi
+  echo "h3_curl requests=$H3_REQUESTS max_parallel=$CLIENTS warm_up_requests=$H3_WARM_UP_REQUESTS" | tee -a "$RESULTS"
+  start_ns="$(date +%s%N)"
+  curl_h3_transfers "$port" "$H3_REQUESTS" "$results_file" || curl_status=$?
+  end_ns="$(date +%s%N)"
+  elapsed="$(awk -v start="$start_ns" -v end="$end_ns" 'BEGIN { printf "%.9f", (end - start) / 1000000000 }')"
+  python3 - "$server" "$repetition" "$H3_REQUESTS" "$elapsed" "$curl_status" "$results_file" <<'PY' | tee -a "$RESULTS"
+import csv
+import math
+import sys
+
+server, repetition, expected, elapsed, curl_status, result_path = sys.argv[1:]
+expected = int(expected)
+elapsed = float(elapsed)
+curl_status = int(curl_status)
+rows = []
+with open(result_path, newline="", encoding="utf-8") as results:
+    for row in csv.reader(results):
+        if len(row) == 3:
+            try:
+                rows.append((int(row[0]), float(row[1]), int(row[2])))
+            except ValueError:
+                pass
+successes = [row for row in rows if row[0] == 200 and row[2] == 1024]
+latencies = sorted(row[1] for row in successes)
+def percentile(fraction):
+    if not latencies:
+        return 0.0
+    return latencies[max(0, math.ceil(fraction * len(latencies)) - 1)]
+print(
+    f"h3_curl_result server={server} repetition={repetition} expected={expected} "
+    f"completed={len(rows)} succeeded={len(successes)} curl_exit={curl_status} "
+    f"wall_seconds={elapsed} req_per_sec={len(successes) / elapsed:.2f} "
+    f"latency_p50_ms={percentile(0.50) * 1000:.3f} "
+    f"latency_p95_ms={percentile(0.95) * 1000:.3f}"
+)
+if curl_status != 0 or len(rows) != expected or len(successes) != expected:
+    raise SystemExit(1)
+PY
+  cat "$results_file" >>"$RESULTS"
+}
+
+for entry in "relay:$RELAY_PORT" "caddy:$CADDY_PORT" "nginx:$NGINX_PORT" "apache:$APACHE_PORT"; do
   server="${entry%%:*}"
   port="${entry##*:}"
   for protocol in $PROTOCOLS; do

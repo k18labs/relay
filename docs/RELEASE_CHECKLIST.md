@@ -37,7 +37,7 @@ For v0.1, keep the Relay/NGINX matrix as a diagnostic baseline and defer HAProxy
 
 ## Latest PR evidence (not release approval)
 
-At PR commit `de76c72534c78dd2a4141b0604eb3db708399cfa`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hashes; dependency audit and fuzz smoke also passed. The benchmark matrix completed three normal and three capped runs on each architecture and a shutdown-under-load test on each. The TLS job exposed an early-exit issue in the measurement wrapper: only one handshake repetition was recorded, so the harness is being corrected before those results are accepted. Raw results are committed under `docs/perf-results/` and `docs/release-evidence/`. Clean-environment artifact verification and external independent review remain open.
+At PR commit `de76c72534c78dd2a4141b0604eb3db708399cfa`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hashes; dependency audit and fuzz smoke also passed. The benchmark matrix completed three normal and three capped runs on each architecture and a shutdown-under-load test on each. The TLS job produced one timed repetition per architecture; the updated harness validates complete stats while accounting for OpenSSL 3.0's `-new` exit status. The correction is pending CI confirmation. Raw results are committed under `docs/perf-results/` and `docs/release-evidence/`. Clean-environment artifact verification and external independent review remain open.
 
 ## Current release status
 

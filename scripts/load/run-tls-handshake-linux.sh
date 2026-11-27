@@ -80,12 +80,24 @@ echo "duration_seconds=$duration repetitions=3 mode=new-connections"
 failed_repetitions=0
 for repetition in 1 2 3; do
   echo "===== TLS 1.3 new-connection repetition $repetition of 3 ====="
+  output_file="$tmp/s-time-$repetition.txt"
   set +e
-  openssl s_time -new -connect 127.0.0.1:18084 -tls1_3 -time "$duration" 2>&1
+  openssl s_time -new -connect 127.0.0.1:18084 -tls1_3 -time "$duration" \
+    >"$output_file" 2>&1
   openssl_status=$?
   set -e
-  echo "openssl_s_time_exit_status=$openssl_status"
-  if [[ "$openssl_status" -ne 0 ]]; then
+  cat "$output_file"
+  stats_count=$(grep -Ec '^[1-9][0-9]* connections in [1-9][0-9]* real seconds,' "$output_file" || true)
+  real_seconds=$(awk '$2 == "connections" && $3 == "in" && $5 == "real" { print $4; exit }' "$output_file")
+  if [[ "$stats_count" != 1 || ! "$real_seconds" =~ ^[0-9]+$ || "$real_seconds" -lt "$duration" ]]; then
+    echo "TLS repetition $repetition did not produce a complete timed connection summary." >&2
+    failed_repetitions=$((failed_repetitions + 1))
+  elif [[ "$openssl_status" -eq 0 ]]; then
+    echo "openssl_s_time_exit_status=0"
+  elif [[ "$openssl_status" -eq 1 ]]; then
+    echo "openssl_s_time_exit_status=1 (complete -new statistics; OpenSSL 3.0 returns failure for this mode)"
+  else
+    echo "openssl_s_time_exit_status=$openssl_status" >&2
     failed_repetitions=$((failed_repetitions + 1))
   fi
 done

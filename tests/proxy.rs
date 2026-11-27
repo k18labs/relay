@@ -147,6 +147,70 @@ async fn request_failure_logs_exclude_sensitive_request_values() {
     }
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn successful_and_client_failure_logs_exclude_sensitive_request_values() {
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let writer = {
+        let captured = captured.clone();
+        move || SharedLog(captured.clone())
+    };
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_max_level(tracing::Level::DEBUG)
+        .with_writer(writer)
+        .finish();
+    let _subscriber = tracing::subscriber::set_default(subscriber);
+
+    let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let upstream_addr = upstream.local_addr().unwrap();
+    let upstream_task = tokio::spawn(async move {
+        let (mut stream, _) = upstream.accept().await.unwrap();
+        let mut request = Vec::new();
+        let mut buffer = [0; 2048];
+        loop {
+            let count = stream.read(&mut buffer).await.unwrap();
+            if count == 0 {
+                break;
+            }
+            request.extend_from_slice(&buffer[..count]);
+            let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n")
+            else {
+                continue;
+            };
+            if request.len() >= header_end + 4 + 13 {
+                break;
+            }
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+            .await
+            .unwrap();
+    });
+    let relay = start_relay(upstream_addr).await;
+    let successful = b"POST /success?query=success-query-sentinel HTTP/1.1\r\nHost: example.org\r\nAuthorization: Bearer success-credential-sentinel\r\nCookie: session=success-cookie-sentinel\r\nX-Private: success-header-sentinel\r\nContent-Length: 13\r\nConnection: close\r\n\r\nbody-sentinel";
+    assert!(raw_request(relay, successful).await.contains("200 OK"));
+    upstream_task.await.unwrap();
+
+    let malformed = b"GET /client-failure?query=client-query-sentinel HTTP/1.1\r\nHost: example.org\r\nAuthorization: Bearer client-credential-sentinel\r\nCookie: session=client-cookie-sentinel\r\nX-Private: client-header-sentinel\r\nBad Header: malformed\r\nConnection: close\r\n\r\n";
+    let _ = raw_request(relay, malformed).await;
+
+    let logs = String::from_utf8(captured.lock().unwrap().clone()).unwrap();
+    assert!(logs.contains("client connection ended"));
+    for sentinel in [
+        "success-query-sentinel",
+        "success-credential-sentinel",
+        "success-cookie-sentinel",
+        "success-header-sentinel",
+        "body-sentinel",
+        "client-query-sentinel",
+        "client-credential-sentinel",
+        "client-cookie-sentinel",
+        "client-header-sentinel",
+    ] {
+        assert!(!logs.contains(sentinel), "log leaked {sentinel}: {logs}");
+    }
+}
+
 #[tokio::test]
 async fn forwards_to_the_fixed_upstream_and_strips_connection_named_headers() {
     let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();

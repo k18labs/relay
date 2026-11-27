@@ -1,0 +1,26 @@
+[Unit]
+Description=Relay HTTP reverse proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=relay
+Group=relay
+WorkingDirectory=/etc/relay
+ExecStartPre=/usr/local/bin/relay check --config /etc/relay/relay.toml
+ExecStart=/usr/local/bin/relay run --config /etc/relay/relay.toml
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=10s
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/etc/relay
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

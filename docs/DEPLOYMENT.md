@@ -6,4 +6,6 @@ TLS is enabled by default. Provide protected PEM certificate and private-key fil
 
 Certificate, key, and custom upstream CA paths are resolved from the process working directory. Startup validation happens before binding. Relay does not include automatic certificate issuance/renewal, privilege dropping, or a network administration interface.
 
+A systemd unit and operator setup checklist are available in [`deploy/systemd/`](../deploy/systemd/). The unit starts Relay as a dedicated account, validates the configuration before startup, and bounds service stop time. Adapt its filesystem permissions, TCP/UDP firewall rules, and file-descriptor limit to the host.
+
 The tagged release workflow creates a draft GitHub release after Linux x86-64 and ARM64 builds and an SPDX SBOM job complete. It attaches binary checksums and requests GitHub build provenance attestations. A draft is a review artifact, not authorization to publish: maintainers must verify the attestation and checksums, review the SBOM, and complete the release checklist before publishing.

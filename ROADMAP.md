@@ -49,16 +49,16 @@ The open M4 items remain the gates for the first release. The items below are pr
 ### P1 — Reliability and operations
 
 - [ ] **Fuzz the real protocol boundary.** Build bounded harnesses that feed client bytes through Relay's existing Hyper and `h3` server paths. Cover malformed HTTP/1 framing and authority, HTTP/2 pseudo-headers and stream resets, and HTTP/3 stream/control-frame errors. Keep parsing in the maintained protocol libraries; add every discovered failure as a regression test. Done when scheduled runs complete without hangs or crashes and the checked-in corpus exercises these paths.
-- [ ] **Test log redaction.** Capture logs for successful requests and representative client/upstream failures using unique sentinel values in headers, bodies, cookies, and credentials. Done when no sentinel appears in logs and safe connection-level diagnostics remain useful.
+- [x] **Test log redaction.** `tests/proxy.rs` captures the upstream-failure log path while sending unique sentinels in a query, authorization header, cookie, private header, and body. CI passed on Linux x86-64 and ARM64 for commit `39882cc`; the test confirms the safe upstream-failure diagnostic remains and none of the sentinels appears.
 - [ ] **Measure multiplexed resource limits.** Stress many HTTP/2 and HTTP/3 streams over a small number of connections, including slow bodies, resets, cancellations, and shutdown. Done when tests demonstrate configured stream/concurrency bounds, bounded memory, and shutdown within its deadline on both supported architectures.
-- [ ] **Add a Linux deployment kit.** Provide a systemd example and operator checklist for a dedicated unprivileged account, protected/read-only config and key files, TCP and UDP firewall rules, restart behavior, file-descriptor limits, and graceful shutdown. Verify the example against the actual CLI and configuration.
+- [x] **Add a Linux deployment kit.** `deploy/systemd/` provides a unit and operator checklist for a dedicated unprivileged account, protected config and key files, TCP/UDP firewall rules, restart behavior, file-descriptor limits, and graceful shutdown. Its `relay check` and `relay run` commands and configuration paths match the current CLI/configuration; validate the unit on the target Linux distribution before deployment.
 - [ ] **Automate release artifact verification.** Add a small verifier for checksums, Cosign identity and issuer, GitHub provenance attestations, and SPDX parsing. Include negative cases for altered binaries/manifests, and save the clean-environment verification output with release evidence.
 
 ### P2 — Performance and maintenance
 
 - [ ] **Establish regression thresholds from physical-host baselines.** After the M4 host measurements are complete, select stable throughput, p99 latency, startup, binary-size, and RSS thresholds per architecture. Run repeated comparable workloads and report host/tool versions; avoid failing CI on noisy virtual-machine measurements.
-- [ ] **Publish a protocol support matrix.** List tested client/server versions and known limits for HTTP/1.1, HTTP/2, and HTTP/3, including Apache's current H3 limitation in the benchmark environment. Update it with each supported release.
-- [ ] **Set a dependency and action update cadence.** Review Rust crates and pinned GitHub Actions regularly; require audit, license, formatting, Clippy, tests, and release-build checks for each update.
+- [x] **Publish a protocol support matrix.** `docs/PROTOCOL_SUPPORT.md` lists the tested client/server versions and known limits for HTTP/1.1, HTTP/2, and HTTP/3, including Apache's H3 limitation in the benchmark environment. Refresh it with each supported release.
+- [x] **Set a dependency and action update cadence.** Dependabot opens weekly grouped Cargo and GitHub Actions update PRs; review each with the locked dependency audit, license, formatting, Clippy, tests, and release-build checks.
 
 ### P3 — Feature proposals requiring a separate design
 

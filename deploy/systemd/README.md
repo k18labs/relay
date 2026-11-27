@@ -47,3 +47,16 @@ The unit checks configuration and TLS files before each start, restarts on failu
 - Inspect logs with `journalctl`; Relay logs operational events and must not log request headers, bodies, credentials, or cookies.
 
 This example does not establish a production security boundary by itself. Validate the deployment on the target distribution and complete the release gates in `docs/RELEASE_CHECKLIST.md` before production use.
+
+## Validation status
+
+The unit passed `systemd-analyze verify` with systemd 261 under WSL2 using a
+temporary root containing the unit, standard target units, and a local debug
+Relay binary at the configured executable path. This checks unit syntax and
+referenced executable presence on that systemd version only. It does not test
+service startup, account or file permissions, firewall behavior, or a target
+Linux distribution. Perform those checks on the actual deployment distribution
+before enabling the service. `scripts/release/verify-systemd-unit.sh` repeats
+the staged check against the release binary; CI now runs it on both supported
+Linux architectures after building. The workflow has not yet run for this
+uncommitted change.

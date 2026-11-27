@@ -28,6 +28,8 @@ jobs:
         run: bash scripts/release/test-verify-artifacts.sh
       - name: Release build
         run: cargo build --locked --release
+      - name: Verify systemd deployment unit
+        run: bash scripts/release/verify-systemd-unit.sh
       - name: Verify clean repeat build
         run: |
           sha256sum target/release/relay | tee "$RUNNER_TEMP/relay-first-build.sha256"

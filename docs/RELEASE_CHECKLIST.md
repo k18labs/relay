@@ -14,8 +14,10 @@ Do not publish a Relay release until every required gate below has evidence atta
 - [x] Resolve the external HTTP/3 client stream-reset report and attach successful interoperability evidence: curl 8.21.0 negotiated H3, received all 1,024 response bytes, and exited successfully on WSL2 ARM64 after Relay began draining the retained request stream. The regression test covers an upstream early response during an open upload. [Raw smoke output](perf-results/2026-11-27-wsl-arm64-h3-curl-smoke.txt). Diagnostic curl-based H3 throughput runs are recorded; representative native-host performance evidence remains open.
 - [x] Record the first WSL2 ARM64 comparison against Caddy, NGINX, and Apache in `docs/BENCHMARKS.md`; the NGINX HTTP/2 runs were inconsistent and this data is diagnostic only.
 - [ ] An external independent security reviewer has reviewed the release candidate and all findings have a documented disposition.
+- Review preparation: [`INDEPENDENT_SECURITY_REVIEW_PACKET.md`](INDEPENDENT_SECURITY_REVIEW_PACKET.md) defines the proposed scope and report evidence. This preparation is not an external review and does not close the gate.
 - [ ] The release build has a source SBOM, per-binary SHA-256 checksums, GitHub build provenance attestations, and Cosign keyless signatures for binaries, checksum manifests, and SBOM. Verify all of them from a clean environment.
 - [x] Verify repeat-build results on both supported architectures and explain any expected non-reproducible fields. CI matched clean release build hashes on `285143c`; rerun for the final release commit.
+- Unit preflight: `scripts/release/verify-systemd-unit.sh` checks the deployment unit in a temporary root after the release build; it passed locally with systemd 261, and the CI workflow now runs it on both architectures. Current workflow evidence is pending. Target-distribution account, permissions, firewall, and runtime validation is still required before deployment.
 - [ ] Review the draft release, attached files, notes, version, and upgrade/configuration implications. Publish only after maintainer approval.
 
 ## Draft artifact verification

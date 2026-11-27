@@ -18,7 +18,11 @@ jobs:
         run: cargo install cargo-audit --locked
       - name: Audit dependencies
         run: cargo audit
+      - name: Audit fuzz dependencies
+        run: cargo audit --file fuzz/Cargo.lock
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked
       - name: Check licenses and dependency sources
         run: cargo deny check
+      - name: Check fuzz licenses and dependency sources
+        run: cd fuzz && cargo deny check

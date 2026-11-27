@@ -8,3 +8,5 @@
 !/fuzz/corpus/*/hosts.txt
 !/fuzz/corpus/*/headers.txt
 !/fuzz/corpus/http1_server/*
+!/fuzz/corpus/http2_server/h2-get-request
+!/fuzz/corpus/http2_server/h2-reset-stream

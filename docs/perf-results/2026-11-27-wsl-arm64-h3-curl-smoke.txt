@@ -1,5 +1,5 @@
 Relay competitor benchmark
-date_utc=2026-11-27T08:37:10Z
+date_utc=2026-11-27T08:44:15Z
 kernel=Linux 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 00:46:21 UTC 2026 aarch64 GNU/Linux
 cpu=not reported by WSL2 guest
 logical_cpus=12
@@ -23,23 +23,23 @@ spawning thread #3: 1 total client(s). Timing-based test with 0s of warm-up time
 Warm-up started for thread #1.
 Warm-up started for thread #0.
 Warm-up started for thread #3.
-Warm-up started for thread #2.
 progress: 50% of clients started
+Warm-up phase is over for thread #1.
+Main benchmark duration is started for thread #1.
+Warm-up started for thread #2.
 progress: 100% of clients started
-Warm-up phase is over for thread #2.
-Main benchmark duration is started for thread #2.
 Warm-up phase is over for thread #0.
 Main benchmark duration is started for thread #0.
 Warm-up phase is over for thread #3.
 Main benchmark duration is started for thread #3.
-Warm-up phase is over for thread #1.
-Main benchmark duration is started for thread #1.
+Warm-up phase is over for thread #2.
+Main benchmark duration is started for thread #2.
+Main benchmark duration is over for thread #1. Stopping all clients.
+Main benchmark duration is over for thread #3. Stopping all clients.
+Stopped all clients for thread #1
+Stopped all clients for thread #3
 Main benchmark duration is over for thread #0. Stopping all clients.
 Stopped all clients for thread #0
-Main benchmark duration is over for thread #1. Stopping all clients.
-Stopped all clients for thread #1
-Main benchmark duration is over for thread #3. Stopping all clients.
-Stopped all clients for thread #3
 Main benchmark duration is over for thread #2. Stopping all clients.
 Stopped all clients for thread #2
 

@@ -41,3 +41,30 @@
 - [ ] Run the protected-tag workflow and verify the SBOM, checksums, provenance attestations, and signed release artifacts from a clean environment. No tagged artifact has been verified.
 - [x] Add a release checklist and a tag workflow that validates, builds both Linux architectures, generates SPDX, checksums, GitHub provenance attestations, and Cosign keyless signatures, then creates a draft only.
 - [ ] Complete independent external security review and all release gates; only then consider v0.1 RC.
+
+## Proposed follow-up backlog
+
+The open M4 items remain the gates for the first release. The items below are proposed improvements for broader deployment and later releases; they do not change the initial product scope or claim that the open release gates are complete.
+
+### P1 — Reliability and operations
+
+- [ ] **Fuzz the real protocol boundary.** Build bounded harnesses that feed client bytes through Relay's existing Hyper and `h3` server paths. Cover malformed HTTP/1 framing and authority, HTTP/2 pseudo-headers and stream resets, and HTTP/3 stream/control-frame errors. Keep parsing in the maintained protocol libraries; add every discovered failure as a regression test. Done when scheduled runs complete without hangs or crashes and the checked-in corpus exercises these paths.
+- [ ] **Test log redaction.** Capture logs for successful requests and representative client/upstream failures using unique sentinel values in headers, bodies, cookies, and credentials. Done when no sentinel appears in logs and safe connection-level diagnostics remain useful.
+- [ ] **Measure multiplexed resource limits.** Stress many HTTP/2 and HTTP/3 streams over a small number of connections, including slow bodies, resets, cancellations, and shutdown. Done when tests demonstrate configured stream/concurrency bounds, bounded memory, and shutdown within its deadline on both supported architectures.
+- [ ] **Add a Linux deployment kit.** Provide a systemd example and operator checklist for a dedicated unprivileged account, protected/read-only config and key files, TCP and UDP firewall rules, restart behavior, file-descriptor limits, and graceful shutdown. Verify the example against the actual CLI and configuration.
+- [ ] **Automate release artifact verification.** Add a small verifier for checksums, Cosign identity and issuer, GitHub provenance attestations, and SPDX parsing. Include negative cases for altered binaries/manifests, and save the clean-environment verification output with release evidence.
+
+### P2 — Performance and maintenance
+
+- [ ] **Establish regression thresholds from physical-host baselines.** After the M4 host measurements are complete, select stable throughput, p99 latency, startup, binary-size, and RSS thresholds per architecture. Run repeated comparable workloads and report host/tool versions; avoid failing CI on noisy virtual-machine measurements.
+- [ ] **Publish a protocol support matrix.** List tested client/server versions and known limits for HTTP/1.1, HTTP/2, and HTTP/3, including Apache's current H3 limitation in the benchmark environment. Update it with each supported release.
+- [ ] **Set a dependency and action update cadence.** Review Rust crates and pinned GitHub Actions regularly; require audit, license, formatting, Clippy, tests, and release-build checks for each update.
+
+### P3 — Feature proposals requiring a separate design
+
+- [ ] **Atomic configuration and certificate reload.** Validate a complete replacement before swapping it in, keep the last-known-good configuration on failure, and test in-flight requests and certificate rotation.
+- [ ] **Optional upstream HTTP/2.** Prototype only after workload evidence shows a benefit; preserve verified TLS, fixed configured origins, bounded pooling, and the current HTTP/1.1 upstream default unless a separate design justifies changing it.
+- [ ] **Multiple configured upstreams with health checks and balancing.** Keep destinations configuration-controlled, bound per-upstream pools and health-check work, and define failure/retry behavior before implementation.
+- [ ] **Operator diagnostics.** Confirm a concrete operator need before adding metrics. Preserve the no-request-data logging rule and keep a network administration endpoint out of scope unless separately threat-modeled.
+
+Features excluded by `SPEC.md`—including general forward proxying, arbitrary destinations, caching, WAF, automatic certificate issuance, dashboards, and a remote admin API—remain out of scope until a separate product and threat-model review approves them.

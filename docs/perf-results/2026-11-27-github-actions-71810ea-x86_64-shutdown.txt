@@ -22,7 +22,7 @@ Running 30s test @ http://127.0.0.1:18082/bench.txt
      50%   57.88ms
      75%   88.14ms
      90%  619.35ms
-     99%    1.33s 
+     99%    1.33s
   6384 requests in 2.11s, 7.38MB read
   Socket errors: connect 0, read 255, write 2683, timeout 0
 Requests/sec:   3029.07

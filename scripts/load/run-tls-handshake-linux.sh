@@ -77,7 +77,17 @@ echo "relay_tls_idle_rss_kib=$relay_idle_rss_kib"
 echo "openssl=$(openssl version)"
 echo "tls_version=TLS1.3"
 echo "duration_seconds=$duration repetitions=3 mode=new-connections"
+failed_repetitions=0
 for repetition in 1 2 3; do
   echo "===== TLS 1.3 new-connection repetition $repetition of 3 ====="
+  set +e
   openssl s_time -new -connect 127.0.0.1:18084 -tls1_3 -time "$duration" 2>&1
+  openssl_status=$?
+  set -e
+  echo "openssl_s_time_exit_status=$openssl_status"
+  if [[ "$openssl_status" -ne 0 ]]; then
+    failed_repetitions=$((failed_repetitions + 1))
+  fi
 done
+echo "tls_handshake_repetitions_completed=3 failed=$failed_repetitions"
+[[ "$failed_repetitions" -eq 0 ]]

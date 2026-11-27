@@ -21,6 +21,25 @@ At 50 clients, the Python upstream limits Relay throughput to about 1,160 reques
 
 The workflow also sent SIGTERM during 256-client load on both architectures. Relay exited cleanly inside the 7-second watchdog; the raw results are [x86-64](release-evidence/2026-11-27-github-actions-linux-x86_64-shutdown-load.txt) and [ARM64](release-evidence/2026-11-27-github-actions-linux-aarch64-shutdown-load.txt). `wrk` socket errors in those two files are expected because the test deliberately stops Relay during the run.
 
+## Post-worker-count Linux VM measurements
+
+Commit `de76c72` changed Relay to a two-worker default. The benchmark matrix passed again on both four-vCPU GitHub-hosted VMs: three 30-second runs at 50 clients and three at the configured 256-connection cap. Raw stdout is preserved for [x86-64 normal](perf-results/2026-11-27-github-actions-de76-x86_64-normal.txt), [x86-64 cap](perf-results/2026-11-27-github-actions-de76-x86_64-connection-cap.txt), [ARM64 normal](perf-results/2026-11-27-github-actions-de76-aarch64-normal.txt), and [ARM64 cap](perf-results/2026-11-27-github-actions-de76-aarch64-connection-cap.txt). The CI run also recorded [TLS](perf-results/2026-11-27-github-actions-de76-x86_64-tls.txt) and [ARM64 TLS](perf-results/2026-11-27-github-actions-de76-aarch64-tls.txt); each currently contains one completed repetition because the TLS command stopped the script early, so those figures are not treated as repeated TLS evidence. The harness is being corrected to surface the command failure and verify all repetitions.
+
+Median requests/second across the three repetitions:
+
+| Architecture | Clients | Direct upstream | Relay | NGINX |
+| --- | ---: | ---: | ---: | ---: |
+| x86-64 | 50 | 1,167.52 | 1,162.56 | 2,837.42 |
+| ARM64 | 50 | 1,167.81 | 1,155.04 | 1,754.83 |
+| x86-64 | 256 | 6,113.29 | 5,150.73 | 2,783.22* |
+| ARM64 | 256 | 3,643.73 | 3,240.01 | 1,526.47* |
+
+The 50-client median p99 latencies were 42.06 ms for Relay on x86-64 (42.03 ms direct) and 43.04 ms on ARM64 (42.03 ms direct). At 256 clients Relay p99 was 118.86 ms on x86-64 and 909.99 ms on ARM64; latency increased sharply at the configured connection cap. NGINX emitted client read errors in every capped run (*), so the cap comparison does not support a ranking.
+
+The same logs report median Relay CPU and peak sampled RSS: x86-64 was 8% CPU and 8,936 KiB RSS at 50 clients, and 30% CPU and 20,624 KiB at 256; ARM64 was 16% and 7,076 KiB at 50, and 42% and 19,748 KiB at 256. The optimized stripped binaries were 5,980,952 bytes (x86-64) and 4,659,520 bytes (ARM64). Median startup-to-first-HTTP measurements were 49 ms and 62 ms, respectively; idle RSS was 6,052 KiB and 4,304 KiB. These are VM observations, not physical-host release evidence. The x86-64 size is above the provisional ~5 MB target and ARM64 startup is above the provisional ~50 ms target.
+
+Shutdown-under-load passed on both architectures; raw logs are [x86-64](release-evidence/2026-11-27-github-actions-de76-x86_64-shutdown-load.txt) and [ARM64](release-evidence/2026-11-27-github-actions-de76-aarch64-shutdown-load.txt). Socket errors there are expected because Relay is deliberately stopped while clients are active.
+
 Three 30-second WSL ARM64 repetitions at 50 clients and three at the configured 256-connection cap are recorded in [normal-load results](perf-results/2026-11-26-kali-wsl-arm64-load-normal.txt) and [connection-cap results](perf-results/2026-11-26-kali-wsl-arm64-load-connection-cap.txt). At 50 clients Relay varied from 428.53 to 960.25 req/s across the three runs. At 256 clients Relay varied from 369.52 to 1,699.31 req/s; the runs also recorded `wrk` timeouts and socket read errors. The upstream and NGINX results varied substantially too. This host's WSL2 scheduling and Python threaded upstream make these results unsuitable for release performance conclusions.
 
 A separate 256-client WSL test sent SIGTERM during active load and confirmed that Relay exited cleanly within the 7-second watchdog; [raw output](release-evidence/2026-11-27-wsl-arm64-shutdown-load.txt) includes the client-side disconnects caused by stopping the proxy.

@@ -5,15 +5,15 @@ Do not publish a Relay release until every required gate below has evidence atta
 ## Required gates
 
 - [x] Review `SPEC.md`, `ROADMAP.md`, `docs/THREAT_MODEL.md`, and `docs/SECURITY_MODEL.md`; remaining release limitations are listed in this checklist and the performance/security docs.
-- [ ] CI passes on Linux x86-64 and ARM64 for the release commit: formatting, Clippy with warnings denied, locked tests, and optimized builds.
-- [ ] `cargo audit` and `cargo deny check` pass on the locked dependency graph; review changes to direct dependencies and enabled features.
+- [ ] CI passes on Linux x86-64 and ARM64 for the final release commit: formatting, Clippy with warnings denied, locked tests, and optimized builds. PR commit `de76c72` passed; the benchmark harness correction is pending.
+- [x] `cargo audit` and `cargo deny check` pass on the locked dependency graph; review changes to direct dependencies and enabled features. PR commit `de76c72` passed.
 - [ ] Run each scheduled fuzz target and attach corpus, duration, and run-count evidence. Triage every crash.
-- [ ] Rerun repeatable load tests at normal and configured-limit workloads on both architectures after the worker-count change. Earlier three 30-second runs at 50 and 256 clients passed on x86-64 and ARM64 GitHub-hosted Linux VMs; those runs used the prior automatic Tokio worker count. NGINX emitted read errors at the cap, so those results are diagnostic, not a performance claim.
+- [x] Rerun repeatable load tests at normal and configured-limit workloads on both architectures after the worker-count change. Three 30-second runs at 50 and 256 clients completed on x86-64 and ARM64 GitHub-hosted Linux VMs on `de76c72`; Relay had no client errors, while NGINX emitted read errors at the cap. These results are diagnostic, not a performance claim.
 - [ ] Record binary size, idle and loaded RSS, CPU, startup, TLS handshake, latency, and scaling results on representative physical hosts. WSL2 smoke data is available but does not meet the provisional startup or p99-overhead targets.
 - [x] Record the v0.1 scope decision below: compare with NGINX only, and defer HAProxy/Caddy/Pingora comparisons until after v0.1.
 - [ ] An external independent security reviewer has reviewed the release candidate and all findings have a documented disposition.
 - [ ] The release build has a source SBOM, per-binary SHA-256 checksums, and GitHub build provenance attestations. Verify all three from a clean environment.
-- [ ] Verify repeat-build results on both supported architectures and explain any expected non-reproducible fields.
+- [x] Verify repeat-build results on both supported architectures and explain any expected non-reproducible fields. CI matched clean release build hashes on `de76c72`; rerun for the final release commit.
 - [ ] Review the draft release, attached files, notes, version, and upgrade/configuration implications. Publish only after maintainer approval.
 
 ## Draft artifact verification
@@ -37,7 +37,7 @@ For v0.1, keep the Relay/NGINX matrix as a diagnostic baseline and defer HAProxy
 
 ## Latest PR evidence (not release approval)
 
-At PR commit `e849e30f92e7f9a75d662894b77a26ca564f0a05`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hashes; dependency audit and fuzz smoke also passed. The benchmark matrix completed three normal and three capped runs on each architecture and a shutdown-under-load test on each. These runs predate the two-worker default and must be repeated. Raw results are committed under `docs/perf-results/` and `docs/release-evidence/`. Clean-environment artifact verification and external independent review remain open.
+At PR commit `de76c72534c78dd2a4141b0604eb3db708399cfa`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hashes; dependency audit and fuzz smoke also passed. The benchmark matrix completed three normal and three capped runs on each architecture and a shutdown-under-load test on each. The TLS job exposed an early-exit issue in the measurement wrapper: only one handshake repetition was recorded, so the harness is being corrected before those results are accepted. Raw results are committed under `docs/perf-results/` and `docs/release-evidence/`. Clean-environment artifact verification and external independent review remain open.
 
 ## Current release status
 

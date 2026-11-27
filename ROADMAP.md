@@ -4,7 +4,7 @@
 
 - [x] Rust crate, pinned toolchain, lockfile, strict config parser, and `run`/`check`/`version` CLI.
 - [x] CI and dependency/license policy files.
-- [x] Linux x86-64 and ARM64 builds and CI evidence for PR commit `e849e30`: both GitHub Actions jobs passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hash comparisons on 2026-11-27. The worker-count update still needs fresh CI evidence.
+- [x] Linux x86-64 and ARM64 builds and CI evidence for PR commit `de76c72`: both GitHub Actions jobs passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hash comparisons on 2026-11-27.
 
 ## M1 — HTTP proxy (implemented; broader validation remains)
 
@@ -20,7 +20,7 @@
 - [x] TLS 1.3 termination, PEM loading, and TLS configuration validation.
 - [x] HTTPS upstream with certificate-chain and hostname verification; no bypass or early data.
 - [x] Local transport security integration tests.
-- [x] Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and repeat-build checks on the current PR commit.
+- [x] Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and repeat-build checks on PR commit `de76c72`.
 - [ ] Complete an external independent security review before the first production release.
 
 ## M3 — Hardening (in progress)
@@ -28,7 +28,7 @@
 - [x] Fuzz configuration/routing and protocol-facing policy paths with checked-in seed corpus and scheduled CI; bounded local smoke runs pass on ARM64.
 - [x] Run locked dependency advisory/license checks and review the direct dependency/features policy; first-party unsafe Rust remains forbidden. Replace the unmaintained PEM parser with `rustls-pki-types`.
 - [x] Add a focused regression proving a canceled upstream exchange is not retried.
-- [x] Run three-repeat normal and connection-cap stress profiles plus SIGTERM cleanup under 256-client load on both GitHub-hosted Linux architectures. Relay reported no errors or timeouts in the capped VM runs, and both shutdown checks exited within the 7-second watchdog. Separate WSL runs showed high variance and errors; all raw results are in `docs/perf-results/` and `docs/release-evidence/`.
+- [x] Run three-repeat normal and connection-cap stress profiles plus SIGTERM cleanup under 256-client load on both GitHub-hosted Linux architectures, including after the two-worker default. Relay had no `wrk` errors at the cap; NGINX had client read errors in capped runs. Both shutdown checks exited within the 7-second watchdog. Separate WSL runs showed high variance and errors; all raw results are in `docs/perf-results/` and `docs/release-evidence/`.
 - [x] Update security model and deployment guidance to state verified behavior and remaining release gaps.
 
 ## M4 — Release candidate (not started)

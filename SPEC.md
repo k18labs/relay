@@ -26,6 +26,6 @@ This is an early development implementation, not a release candidate. Current PR
 
 Scripting, plugins, general forward proxying, arbitrary destinations, Kubernetes controller, database, general WAF, caching, automatic ACME, dashboard, remote admin API, load balancing, health checks, and configuration/certificate reload.
 
-HTTP/3 external-client interoperability and performance characterization remain open release work; passing in-process tests alone is not release acceptance.
+One external curl 8.21.0 smoke run now completes successfully after the early-response stream fix. Broader HTTP/3 interoperability and throughput characterization remain open release work; `h2load --h3` currently records zero successful requests, and a single curl smoke run is not release acceptance.
 
 All size, memory, throughput, and latency goals remain unverified until measured on documented Linux hardware.

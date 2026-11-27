@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added inbound HTTP/2 over TLS/TCP and HTTP/3 over QUIC/UDP, with bounded per-connection streams and shared route, request, body, and shutdown policy. External HTTP/3 client response termination remains under investigation.
+- Added inbound HTTP/2 over TLS/TCP and HTTP/3 over QUIC/UDP, with bounded per-connection streams and shared route, request, body, and shutdown policy. Fixed HTTP/3 response stream resets when an upstream responds before the client upload reaches EOF; one external curl smoke run now completes successfully. Broader interoperability and throughput characterization remain open.
 - Added a reproducible Caddy, NGINX, and Apache HTTP/1.1 and HTTP/2 comparison harness and WSL2 ARM64 raw results. These are diagnostic only and make no performance ranking claim.
 - Added downstream TLS 1.3 and verified HTTPS upstream transport using rustls.
 - Added strict TLS credential and trust-root loading, bounded request/connection handling, body and header limits, timeouts, and graceful shutdown.

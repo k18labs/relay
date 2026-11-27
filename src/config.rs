@@ -1,6 +1,6 @@
 use std::{collections::HashSet, net::SocketAddr, str::FromStr};
 
-use http::Uri;
+use http::{Uri, uri::Authority};
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -57,6 +57,7 @@ pub struct Limits {
     pub connect_timeout_ms: u64,
     pub response_timeout_ms: u64,
     pub body_idle_timeout_ms: u64,
+    pub downstream_write_timeout_ms: u64,
     pub upstream_idle_timeout_ms: u64,
     pub shutdown_timeout_ms: u64,
     pub max_idle_upstream_per_host: usize,
@@ -75,6 +76,7 @@ impl Default for Limits {
             connect_timeout_ms: 5_000,
             response_timeout_ms: 30_000,
             body_idle_timeout_ms: 30_000,
+            downstream_write_timeout_ms: 30_000,
             upstream_idle_timeout_ms: 30_000,
             shutdown_timeout_ms: 5_000,
             max_idle_upstream_per_host: 8,
@@ -158,6 +160,7 @@ impl Config {
             || self.limits.connect_timeout_ms == 0
             || self.limits.response_timeout_ms == 0
             || self.limits.body_idle_timeout_ms == 0
+            || self.limits.downstream_write_timeout_ms == 0
             || self.limits.upstream_idle_timeout_ms == 0
             || self.limits.shutdown_timeout_ms == 0
         {
@@ -198,7 +201,9 @@ impl Config {
                 || uri.authority().is_none()
                 || uri.path() != "/"
                 || uri.query().is_some()
-                || uri.authority().is_some_and(|a| a.as_str().contains('@'))
+                || uri.authority().is_some_and(|authority| {
+                    authority.as_str().contains('@') || !authority_port_is_valid(authority)
+                })
             {
                 return Err(ConfigError::Invalid(format!(
                     "upstream for host {:?} must be an http:// origin with no credentials, path, or query",
@@ -217,6 +222,28 @@ impl Config {
             .filter(|route| path_matches(path, &route.path))
             .max_by_key(|route| route.path.len())
     }
+}
+
+pub(crate) fn authority_port_is_valid(authority: &Authority) -> bool {
+    let raw = authority.as_str();
+    let suffix = if raw.starts_with('[') {
+        let Some(end) = raw.find(']') else {
+            return false;
+        };
+        &raw[end + 1..]
+    } else if let Some(colon) = raw.find(':') {
+        &raw[colon..]
+    } else {
+        return true;
+    };
+
+    if suffix.is_empty() {
+        return true;
+    }
+    let Some(port) = suffix.strip_prefix(':') else {
+        return false;
+    };
+    !port.is_empty() && port.parse::<u16>().is_ok()
 }
 
 pub fn normalize_host(host: &str) -> Option<String> {

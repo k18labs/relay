@@ -1,0 +1,109 @@
+name: Release candidate
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
+      - name: Format
+        run: cargo +1.96.0 fmt --all -- --check
+      - name: Clippy
+        run: cargo +1.96.0 clippy --all-targets --locked -- -D warnings
+      - name: Tests
+        run: cargo +1.96.0 test --locked
+      - name: Install dependency audit tools
+        run: |
+          cargo +1.96.0 install cargo-audit --locked
+          cargo +1.96.0 install cargo-deny --locked
+      - name: Audit dependencies and policy
+        run: |
+          cargo audit
+          cargo deny check
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            asset: relay-linux-x86_64
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            asset: relay-linux-aarch64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+          targets: ${{ matrix.target }}
+      - name: Build locked release binary
+        run: cargo build --locked --release --target "${{ matrix.target }}"
+      - name: Package binary and checksums
+        shell: bash
+        run: |
+          mkdir dist
+          cp "target/${{ matrix.target }}/release/relay" "dist/${{ matrix.asset }}"
+          cd dist
+          sha256sum "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: dist/${{ matrix.asset }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/*
+          if-no-files-found: error
+
+  sbom:
+    needs: validate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: anchore/sbom-action@f8bdd1d8ac5e901a77a92f111440fdb1b593736b # v0.20.6
+        with:
+          path: .
+          format: spdx-json
+          artifact-name: relay-sbom.spdx.json
+
+  draft-release:
+    needs: [build, sbom]
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+      - name: Verify checksums and create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          find dist -name '*.sha256' -print0 | while IFS= read -r -d '' sums; do
+            (cd "$(dirname "$sums")" && sha256sum --check "$(basename "$sums")")
+          done
+          gh release create "$RELEASE_TAG" dist/*/* --draft --verify-tag \
+            --title "Relay $RELEASE_TAG" \
+            --notes "Draft release candidate. Review CI, SBOM, checksums, and build provenance before publishing."

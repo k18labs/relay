@@ -1,0 +1,36 @@
+[package]
+name = "relay-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+http = "1"
+libfuzzer-sys = "0.4"
+relay = { path = ".." }
+
+[[bin]]
+name = "config_routes"
+path = "fuzz_targets/config_routes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "host_normalization"
+path = "fuzz_targets/host_normalization.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "header_policy"
+path = "fuzz_targets/header_policy.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

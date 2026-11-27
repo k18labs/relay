@@ -33,16 +33,64 @@ use tokio::{
     time::{Instant, Sleep},
 };
 use tokio_rustls::TlsAcceptor;
+use tower_service::Service;
 
 use crate::{
-    config::{Config, Route},
+    config::{self, Config, Route},
     tls,
 };
 
 type BoxError = Box<dyn Error + Send + Sync>;
 type ProxyBody = UnsyncBoxBody<Bytes, BoxError>;
-type UpstreamConnector = hyper_rustls::HttpsConnector<HttpConnector>;
+type UpstreamConnector = BoundedConnector<hyper_rustls::HttpsConnector<HttpConnector>>;
 type ProxyClient = Client<UpstreamConnector, ProxyBody>;
+
+#[derive(Clone)]
+struct BoundedConnector<C> {
+    inner: C,
+    timeout: Duration,
+    permits: Arc<tokio::sync::Semaphore>,
+}
+
+impl<C> BoundedConnector<C> {
+    fn new(inner: C, timeout: Duration, max_in_flight: usize) -> Self {
+        Self {
+            inner,
+            timeout,
+            permits: Arc::new(tokio::sync::Semaphore::new(max_in_flight)),
+        }
+    }
+}
+
+impl<C> Service<Uri> for BoundedConnector<C>
+where
+    C: Service<Uri, Error = BoxError> + Send + Sync + 'static,
+    C::Future: Send + 'static,
+    C::Response: Send + 'static,
+{
+    type Response = C::Response;
+    type Error = io::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx).map_err(io::Error::other)
+    }
+
+    fn call(&mut self, destination: Uri) -> Self::Future {
+        let future = self.inner.call(destination);
+        let deadline = Instant::now() + self.timeout;
+        let permits = self.permits.clone();
+        Box::pin(async move {
+            let _permit = permits.try_acquire_owned().map_err(io::Error::other)?;
+            tokio::time::timeout_at(deadline, future)
+                .await
+                .map_err(|_| {
+                    io::Error::new(io::ErrorKind::TimedOut, "upstream connection timed out")
+                })?
+                .map_err(io::Error::other)
+        })
+    }
+}
 
 pub async fn serve<F>(
     listener: TcpListener,
@@ -82,6 +130,32 @@ where
     run_server(listener, config, server_tls, client_tls, shutdown).await
 }
 
+async fn accept_with_retry<F, Fut, T>(mut accept: F) -> std::io::Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = std::io::Result<T>>,
+{
+    loop {
+        match accept().await {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::InvalidInput
+                        | std::io::ErrorKind::Unsupported
+                        | std::io::ErrorKind::NotConnected
+                ) =>
+            {
+                return Err(error);
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "listener accept failed; retrying");
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
+}
+
 async fn run_server<F>(
     listener: TcpListener,
     config: Arc<Config>,
@@ -102,12 +176,19 @@ where
         .https_or_http()
         .enable_http1()
         .wrap_connector(connector);
+    let connector = BoundedConnector::new(
+        connector,
+        Duration::from_millis(config.limits.connect_timeout_ms),
+        config.limits.max_concurrent_requests,
+    );
     let mut client_builder = Client::builder(TokioExecutor::new());
     client_builder
+        .pool_timer(TokioTimer::new())
         .pool_max_idle_per_host(config.limits.max_idle_upstream_per_host)
         .pool_idle_timeout(Duration::from_millis(
             config.limits.upstream_idle_timeout_ms,
         ))
+        .retry_canceled_requests(false)
         .http1_max_headers(config.limits.max_header_count)
         .http1_max_buf_size(config.limits.max_header_bytes.max(16 * 1024));
     let client: ProxyClient = client_builder.build(connector);
@@ -120,17 +201,23 @@ where
     ));
     let tls_acceptor = server_tls.map(TlsAcceptor::from);
     let mut connections = JoinSet::new();
+    let (connection_shutdown_tx, connection_shutdown_rx) = tokio::sync::watch::channel(false);
+    let shutting_down = Arc::new(AtomicBool::new(false));
     tokio::pin!(shutdown);
 
     loop {
         tokio::select! {
-            _ = &mut shutdown => break,
+            _ = &mut shutdown => {
+                shutting_down.store(true, Ordering::Release);
+                connection_shutdown_tx.send_replace(true);
+                break;
+            }
             Some(result) = connections.join_next(), if !connections.is_empty() => {
                 if let Err(error) = result {
                     tracing::debug!(error = %error, "connection task ended");
                 }
             }
-            accepted = listener.accept() => {
+            accepted = accept_with_retry(|| listener.accept()) => {
                 let (stream, _) = accepted?;
                 let Ok(permit) = permits.clone().try_acquire_owned() else { drop(stream); continue; };
                 let client = client.clone();
@@ -138,6 +225,8 @@ where
                 let request_permits = request_permits.clone();
                 let handshake_permits = handshake_permits.clone();
                 let tls_acceptor = tls_acceptor.clone();
+                let connection_shutdown = connection_shutdown_rx.clone();
+                let shutting_down = shutting_down.clone();
                 connections.spawn(async move {
                     if let Some(acceptor) = tls_acceptor {
                         let Ok(handshake_permit) = handshake_permits.try_acquire_owned() else { return; };
@@ -147,12 +236,12 @@ where
                         ).await;
                         drop(handshake_permit);
                         match result {
-                            Ok(Ok(stream)) => serve_http(stream, permit, config, client, request_permits).await,
+                            Ok(Ok(stream)) => serve_http(stream, permit, config, client, request_permits, connection_shutdown, shutting_down).await,
                             Ok(Err(error)) => tracing::debug!(error = %error, "TLS handshake failed"),
                             Err(_) => tracing::debug!("TLS handshake timed out"),
                         }
                     } else {
-                        serve_http(stream, permit, config, client, request_permits).await;
+                        serve_http(stream, permit, config, client, request_permits, connection_shutdown, shutting_down).await;
                     }
                 });
             }
@@ -185,10 +274,15 @@ async fn serve_http<I>(
     config: Arc<Config>,
     client: ProxyClient,
     request_permits: Arc<tokio::sync::Semaphore>,
+    mut shutdown: tokio::sync::watch::Receiver<bool>,
+    shutting_down: Arc<AtomicBool>,
 ) where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    let io = TokioIo::new(stream);
+    let io = TokioIo::new(WriteTimeoutIo::new(
+        stream,
+        Duration::from_millis(config.limits.downstream_write_timeout_ms),
+    ));
     let limits = config.limits.clone();
     let service_config = config.clone();
     let service = service_fn(move |request| {
@@ -197,6 +291,7 @@ async fn serve_http<I>(
             service_config.clone(),
             client.clone(),
             request_permits.clone(),
+            shutting_down.clone(),
         )
     });
     let mut builder = hyper::server::conn::http1::Builder::new();
@@ -206,8 +301,112 @@ async fn serve_http<I>(
         .max_header_size(limits.max_header_bytes)
         .max_buf_size(limits.max_header_bytes.max(16 * 1024))
         .header_read_timeout(Duration::from_millis(limits.header_timeout_ms));
-    if let Err(error) = builder.serve_connection(io, service).await {
-        tracing::debug!(error = %error, "client connection ended");
+    let connection = builder.serve_connection(io, service);
+    tokio::pin!(connection);
+    tokio::select! {
+        result = &mut connection => {
+            if let Err(error) = result {
+                tracing::debug!(error = %error, "client connection ended");
+            }
+        }
+        result = shutdown.changed() => {
+            if result.is_ok() && *shutdown.borrow() {
+                connection.as_mut().graceful_shutdown();
+            }
+            if let Err(error) = connection.await {
+                tracing::debug!(error = %error, "client connection ended during graceful shutdown");
+            }
+        }
+    }
+}
+
+struct WriteTimeoutIo<T> {
+    inner: T,
+    timeout: Duration,
+    deadline: Option<Pin<Box<Sleep>>>,
+}
+
+impl<T> WriteTimeoutIo<T> {
+    fn new(inner: T, timeout: Duration) -> Self {
+        Self {
+            inner,
+            timeout,
+            deadline: None,
+        }
+    }
+
+    fn poll_write_timeout(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let deadline = self
+            .deadline
+            .get_or_insert_with(|| Box::pin(tokio::time::sleep(self.timeout)));
+        if deadline.as_mut().poll(cx).is_ready() {
+            Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "downstream write made no progress",
+            )))
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+impl<T: AsyncRead + Unpin> AsyncRead for WriteTimeoutIo<T> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buffer: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.inner).poll_read(cx, buffer)
+    }
+}
+
+impl<T: AsyncWrite + Unpin> AsyncWrite for WriteTimeoutIo<T> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buffer: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        match Pin::new(&mut self.inner).poll_write(cx, buffer) {
+            Poll::Ready(Ok(written)) => {
+                if written > 0 {
+                    self.deadline = None;
+                }
+                Poll::Ready(Ok(written))
+            }
+            Poll::Ready(Err(error)) => {
+                self.deadline = None;
+                Poll::Ready(Err(error))
+            }
+            Poll::Pending => self.poll_write_timeout(cx).map(|result| result.map(|()| 0)),
+        }
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match Pin::new(&mut self.inner).poll_flush(cx) {
+            Poll::Ready(Ok(())) => {
+                self.deadline = None;
+                Poll::Ready(Ok(()))
+            }
+            Poll::Ready(Err(error)) => {
+                self.deadline = None;
+                Poll::Ready(Err(error))
+            }
+            Poll::Pending => self.poll_write_timeout(cx),
+        }
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match Pin::new(&mut self.inner).poll_shutdown(cx) {
+            Poll::Ready(Ok(())) => {
+                self.deadline = None;
+                Poll::Ready(Ok(()))
+            }
+            Poll::Ready(Err(error)) => {
+                self.deadline = None;
+                Poll::Ready(Err(error))
+            }
+            Poll::Pending => self.poll_write_timeout(cx),
+        }
     }
 }
 
@@ -216,12 +415,19 @@ async fn forward(
     config: Arc<Config>,
     client: ProxyClient,
     request_permits: Arc<tokio::sync::Semaphore>,
+    shutting_down: Arc<AtomicBool>,
 ) -> Result<Response<ProxyBody>, Infallible> {
+    if shutting_down.load(Ordering::Acquire) {
+        return Ok(simple_response(StatusCode::SERVICE_UNAVAILABLE, true));
+    }
     if request.method() == http::Method::CONNECT || request.headers().contains_key(header::UPGRADE)
     {
         return Ok(simple_response(StatusCode::NOT_IMPLEMENTED, true));
     }
     if request.uri().scheme().is_some() || request.uri().authority().is_some() {
+        return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+    }
+    if !request.uri().path().starts_with('/') {
         return Ok(simple_response(StatusCode::BAD_REQUEST, true));
     }
     let hosts: Vec<_> = request.headers().get_all(header::HOST).iter().collect();
@@ -231,10 +437,22 @@ async fn forward(
     let Ok(host_value) = hosts[0].to_str() else {
         return Ok(simple_response(StatusCode::BAD_REQUEST, true));
     };
-    let host = match host_value.parse::<http::uri::Authority>() {
-        Ok(authority) => authority.host().to_owned(),
-        Err(_) => return Ok(simple_response(StatusCode::BAD_REQUEST, true)),
+    let Ok(host_authority) = host_value.parse::<http::uri::Authority>() else {
+        return Ok(simple_response(StatusCode::BAD_REQUEST, true));
     };
+    if host_authority.as_str().contains('@') || !config::authority_port_is_valid(&host_authority) {
+        return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+    }
+    let host = host_authority.host().to_owned();
+    let transfer_encoding = request.headers().get_all(header::TRANSFER_ENCODING);
+    if transfer_encoding.iter().count() > 1
+        || transfer_encoding
+            .iter()
+            .next()
+            .is_some_and(|value| !value.as_bytes().eq_ignore_ascii_case(b"chunked"))
+    {
+        return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+    }
     let Some(route) = config.route(&host, request.uri().path()) else {
         return Ok(simple_response(StatusCode::MISDIRECTED_REQUEST, true));
     };
@@ -316,6 +534,15 @@ async fn forward(
 
     match response {
         Ok(Ok(response)) => {
+            let transfer_encoding = response.headers().get_all(header::TRANSFER_ENCODING);
+            if transfer_encoding.iter().count() > 1
+                || transfer_encoding
+                    .iter()
+                    .next()
+                    .is_some_and(|value| !value.as_bytes().eq_ignore_ascii_case(b"chunked"))
+            {
+                return Ok(simple_response(StatusCode::BAD_GATEWAY, true));
+            }
             if response
                 .body()
                 .size_hint()
@@ -418,10 +645,10 @@ fn upstream_uri(route: &Route, request: &Request<Incoming>) -> Result<Uri, ()> {
     let origin = route.upstream.parse::<Uri>().map_err(|_| ())?;
     let scheme = origin.scheme_str().ok_or(())?;
     let authority = origin.authority().ok_or(())?;
-    let path = request.uri().path_and_query().map_or("/", |pq| pq.as_str());
-    format!("{scheme}://{authority}{path}")
-        .parse()
-        .map_err(|_| ())
+    let path = request.uri().path_and_query().ok_or(())?;
+    let mut builder = Uri::builder();
+    builder = builder.scheme(scheme).authority(authority.clone());
+    builder.path_and_query(path.clone()).build().map_err(|_| ())
 }
 
 fn simple_response(status: StatusCode, close: bool) -> Response<ProxyBody> {
@@ -440,7 +667,7 @@ fn simple_response(status: StatusCode, close: bool) -> Response<ProxyBody> {
     response
 }
 
-fn strip_hop_headers(headers: &mut http::HeaderMap) {
+pub fn strip_hop_headers(headers: &mut http::HeaderMap) {
     let mut nominated = Vec::new();
     for value in headers.get_all(header::CONNECTION).iter() {
         if let Ok(value) = value.to_str() {
@@ -465,5 +692,43 @@ fn strip_hop_headers(headers: &mut http::HeaderMap) {
     }
     for name in nominated {
         headers.remove(name);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicBool;
+    use tokio::net::TcpStream;
+
+    #[tokio::test]
+    async fn accept_retries_after_a_transient_listener_error() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let client = tokio::spawn(TcpStream::connect(address));
+        let fail_once = AtomicBool::new(true);
+
+        let (stream, _) = accept_with_retry(|| async {
+            if fail_once.swap(false, Ordering::Relaxed) {
+                Err(io::Error::from(io::ErrorKind::Interrupted))
+            } else {
+                listener.accept().await
+            }
+        })
+        .await
+        .unwrap();
+
+        assert!(stream.peer_addr().is_ok());
+        assert!(client.await.unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn accept_returns_nonrecoverable_listener_errors() {
+        let error = accept_with_retry(|| async {
+            Err::<(), _>(io::Error::from(io::ErrorKind::InvalidInput))
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
     }
 }

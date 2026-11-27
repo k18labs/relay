@@ -1,0 +1,57 @@
+name: Benchmark smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Duration of each proxy run
+        required: true
+        default: "15s"
+        type: string
+      concurrency:
+        description: Concurrent clients
+        required: true
+        default: "50"
+        type: string
+      threads:
+        description: wrk worker threads
+        required: true
+        default: "4"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install benchmark utilities
+        run: sudo apt-get update && sudo apt-get install --yes nginx wrk
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.96.0 --profile minimal
+      - name: Build optimized Relay
+        run: cargo +1.96.0 build --locked --release
+      - name: Run Relay and NGINX smoke comparison
+        env:
+          DURATION: ${{ inputs.duration }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+          THREADS: ${{ inputs.threads }}
+        run: |
+          bash scripts/load/run-linux-local.sh target/release/relay /usr/sbin/nginx \
+            | tee "benchmark-${{ matrix.arch }}.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: benchmark-${{ matrix.arch }}
+          path: benchmark-${{ matrix.arch }}.txt
+          if-no-files-found: error

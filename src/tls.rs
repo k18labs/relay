@@ -1,13 +1,16 @@
 use std::{
     fs::File,
-    io::{self, BufReader, Read},
+    io::{self, Read},
     path::Path,
     sync::Arc,
 };
 
 use rustls::{
     ClientConfig, RootCertStore, ServerConfig,
-    pki_types::{CertificateDer, PrivateKeyDer},
+    pki_types::{
+        CertificateDer, PrivateKeyDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer, PrivateSec1KeyDer,
+        pem::{PemObject, SectionKind},
+    },
 };
 use thiserror::Error;
 
@@ -84,17 +87,14 @@ pub fn build_upstream_client_config(
 }
 
 fn load_certificates(path: &Path) -> Result<Vec<CertificateDer<'static>>, TlsConfigError> {
-    const MAX_PEM_BYTES: u64 = 1024 * 1024;
-    let mut reader = BufReader::new(File::open(path)?).take(MAX_PEM_BYTES + 1);
+    let pem = read_pem_file(path)?;
     let mut certificates = Vec::new();
-    for item in rustls_pemfile::read_all(&mut reader) {
-        match item.map_err(|error| TlsConfigError::Pem(error.to_string()))? {
-            rustls_pemfile::Item::X509Certificate(certificate) => certificates.push(certificate),
+    for item in <(SectionKind, Vec<u8>) as PemObject>::pem_reader_iter(pem.as_slice()) {
+        let (kind, der) = item.map_err(|error| TlsConfigError::Pem(error.to_string()))?;
+        match kind {
+            SectionKind::Certificate => certificates.push(CertificateDer::from(der)),
             _ => return Err(TlsConfigError::InvalidCertificateFile),
         }
-    }
-    if reader.limit() == 0 {
-        return Err(TlsConfigError::PemFileTooLarge);
     }
     if certificates.is_empty() {
         return Err(TlsConfigError::EmptyCertificateFile);
@@ -103,22 +103,30 @@ fn load_certificates(path: &Path) -> Result<Vec<CertificateDer<'static>>, TlsCon
 }
 
 fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, TlsConfigError> {
-    const MAX_PEM_BYTES: u64 = 1024 * 1024;
-    let mut reader = BufReader::new(File::open(path)?).take(MAX_PEM_BYTES + 1);
+    let pem = read_pem_file(path)?;
     let mut key = None;
-    for item in rustls_pemfile::read_all(&mut reader) {
-        let parsed = match item.map_err(|error| TlsConfigError::Pem(error.to_string()))? {
-            rustls_pemfile::Item::Pkcs1Key(key) => PrivateKeyDer::Pkcs1(key),
-            rustls_pemfile::Item::Pkcs8Key(key) => PrivateKeyDer::Pkcs8(key),
-            rustls_pemfile::Item::Sec1Key(key) => PrivateKeyDer::Sec1(key),
+    for item in <(SectionKind, Vec<u8>) as PemObject>::pem_reader_iter(pem.as_slice()) {
+        let (kind, der) = item.map_err(|error| TlsConfigError::Pem(error.to_string()))?;
+        let parsed = match kind {
+            SectionKind::RsaPrivateKey => PrivateKeyDer::Pkcs1(PrivatePkcs1KeyDer::from(der)),
+            SectionKind::PrivateKey => PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(der)),
+            SectionKind::EcPrivateKey => PrivateKeyDer::Sec1(PrivateSec1KeyDer::from(der)),
             _ => return Err(TlsConfigError::InvalidPrivateKeyFile),
         };
         if key.replace(parsed).is_some() {
             return Err(TlsConfigError::InvalidPrivateKeyFile);
         }
     }
-    if reader.limit() == 0 {
+    key.ok_or(TlsConfigError::InvalidPrivateKeyFile)
+}
+
+fn read_pem_file(path: &Path) -> Result<Vec<u8>, TlsConfigError> {
+    const MAX_PEM_BYTES: u64 = 1024 * 1024;
+    let mut reader = File::open(path)?.take(MAX_PEM_BYTES + 1);
+    let mut pem = Vec::new();
+    reader.read_to_end(&mut pem)?;
+    if pem.len() as u64 > MAX_PEM_BYTES {
         return Err(TlsConfigError::PemFileTooLarge);
     }
-    key.ok_or(TlsConfigError::InvalidPrivateKeyFile)
+    Ok(pem)
 }

@@ -165,6 +165,29 @@ async fn rejects_an_https_upstream_hostname_mismatch() {
 }
 
 #[tokio::test]
+async fn bounds_the_upstream_tls_handshake_with_the_connect_deadline() {
+    let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let upstream_addr = upstream.local_addr().unwrap();
+    tokio::spawn(async move {
+        if let Ok(Ok((stream, _))) =
+            tokio::time::timeout(Duration::from_secs(2), upstream.accept()).await
+        {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            drop(stream);
+        }
+    });
+    let text = format!(
+        "[server]\nlisten = \"127.0.0.1:0\"\nmax_connections = 8\ntls = false\n\n[limits]\nconnect_timeout_ms = 100\nresponse_timeout_ms = 5000\n\n[[routes]]\nhost = \"example.org\"\npath = \"/\"\nupstream = \"https://127.0.0.1:{}\"\n",
+        upstream_addr.port()
+    );
+    let relay_address = start_plain_relay(Arc::new(Config::parse(&text).unwrap())).await;
+    let started = tokio::time::Instant::now();
+    let response = request(relay_address).await;
+    assert!(response.contains("502"), "unexpected response: {response}");
+    assert!(started.elapsed() < Duration::from_secs(1));
+}
+
+#[tokio::test]
 async fn terminates_tls_1_3_for_clients_and_forwards_to_http_upstream() {
     let (upstream, upstream_task) = start_http_upstream().await;
     let certificate = fixture_toml_path("localhost-cert.pem");

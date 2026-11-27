@@ -1,3 +1,9 @@
 /target/
 *.pdb
 *.dSYM/
+/fuzz/target/
+/fuzz/artifacts/
+/fuzz/corpus/*/*
+!/fuzz/corpus/*/valid.toml
+!/fuzz/corpus/*/hosts.txt
+!/fuzz/corpus/*/headers.txt

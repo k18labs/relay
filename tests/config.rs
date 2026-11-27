@@ -39,6 +39,18 @@ fn rejects_unsupported_upstream_schemes() {
 }
 
 #[test]
+fn rejects_an_upstream_port_outside_the_tcp_range() {
+    let input = VALID.replace("127.0.0.1:3000", "127.0.0.1:65536");
+    assert!(Config::parse(&input).is_err());
+}
+
+#[test]
+fn rejects_an_upstream_with_an_empty_explicit_port() {
+    let input = VALID.replace("127.0.0.1:3000", "127.0.0.1:");
+    assert!(Config::parse(&input).is_err());
+}
+
+#[test]
 fn rejects_invalid_route_host_syntax() {
     let input = VALID.replace("example.org", "example..org");
     assert!(Config::parse(&input).is_err());

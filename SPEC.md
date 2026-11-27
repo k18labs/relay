@@ -6,7 +6,7 @@ Relay is a lightweight, security-focused HTTP reverse proxy written in Rust. The
 
 - CLI commands: `run`, `check`, and `version`.
 - Strict TOML schema and validation before listener binding.
-- TCP HTTP/1.1 proxying with fixed, configured destinations, normalized host matching, and longest segment-boundary path selection.
+- TCP HTTP/1.1 and HTTP/2, plus HTTP/3 over QUIC/UDP when TLS is enabled, using fixed configured destinations, normalized host matching, and longest segment-boundary path selection. HTTP/2 and HTTP/3 requests use the same routing and policy path; upstream connections remain HTTP/1.1.
 - TLS 1.3 inbound termination and HTTPS upstream verification, with no early data.
 - Streaming request and response bodies; bounded connections, requests, handshakes, headers, bodies, upstream idle pool, timeouts, and shutdown.
 - Hop-by-hop and untrusted forwarding header removal; `CONNECT` and upgrades rejected.
@@ -24,6 +24,8 @@ This is an early development implementation, not a release candidate. Current PR
 
 ## Excluded from initial scope
 
-HTTP/2 and HTTP/3, scripting, plugins, general forward proxying, arbitrary destinations, Kubernetes controller, database, general WAF, caching, automatic ACME, dashboard, remote admin API, load balancing, health checks, and configuration/certificate reload.
+Scripting, plugins, general forward proxying, arbitrary destinations, Kubernetes controller, database, general WAF, caching, automatic ACME, dashboard, remote admin API, load balancing, health checks, and configuration/certificate reload.
+
+HTTP/3 external-client interoperability and performance characterization remain open release work; passing in-process tests alone is not release acceptance.
 
 All size, memory, throughput, and latency goals remain unverified until measured on documented Linux hardware.

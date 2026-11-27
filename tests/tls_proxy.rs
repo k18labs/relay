@@ -1,5 +1,9 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
+use bytes::Bytes;
+use http::{Request, header};
+use http_body_util::{BodyExt, Full};
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use relay::{
     config::{Config, TlsConfig},
     proxy, tls,
@@ -232,6 +236,72 @@ async fn terminates_tls_1_3_for_clients_and_forwards_to_http_upstream() {
         .unwrap()
         .unwrap();
     assert!(String::from_utf8_lossy(&response).contains("200 OK"));
+    upstream_task.await.unwrap();
+}
+
+#[tokio::test]
+async fn negotiates_http2_and_forwards_using_the_authority_for_routing() {
+    let (upstream, upstream_task) = start_http_upstream().await;
+    let certificate = fixture_toml_path("localhost-cert.pem");
+    let private_key = fixture_toml_path("localhost-key.pem");
+    let text = format!(
+        "[server]\nlisten = \"127.0.0.1:0\"\nmax_connections = 8\n\n[tls]\ncertificate = \"{certificate}\"\nprivate_key = \"{private_key}\"\n\n[[routes]]\nhost = \"example.org\"\npath = \"/\"\nupstream = \"http://{upstream}\"\n"
+    );
+    let config = Arc::new(Config::parse(&text).unwrap());
+    let server_tls = tls::load_server_config(&config.tls).unwrap();
+    let client_tls = tls::build_upstream_client_config(&config.tls).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let relay_address = listener.local_addr().unwrap();
+    drop(tokio::spawn(proxy::serve_with_tls(
+        listener,
+        config,
+        Some(server_tls),
+        client_tls,
+        std::future::pending::<()>(),
+    )));
+
+    let tcp = TcpStream::connect(relay_address).await.unwrap();
+    let server_name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+    let mut client_tls = (*tls::build_upstream_client_config(&TlsConfig {
+        certificate: None,
+        private_key: None,
+        upstream_ca_files: vec![fixture("test-ca.pem")],
+    })
+    .unwrap())
+    .clone();
+    client_tls.alpn_protocols = vec![b"h2".to_vec()];
+    let client = tokio_rustls::TlsConnector::from(Arc::new(client_tls))
+        .connect(server_name, tcp)
+        .await
+        .unwrap();
+    assert_eq!(client.get_ref().1.alpn_protocol(), Some(b"h2".as_slice()));
+    let (mut sender, connection) =
+        hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(client))
+            .await
+            .unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let request = Request::builder()
+        .uri("https://example.org/hello")
+        .header(header::HOST, "example.org")
+        .body(Full::new(Bytes::new()))
+        .unwrap();
+    let response = sender.send_request(request).await.unwrap();
+    assert_eq!(response.status(), http::StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get(header::ALT_SVC)
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        format!("h3=\":{}\"; ma=86400", relay_address.port())
+    );
+    assert_eq!(
+        response.into_body().collect().await.unwrap().to_bytes(),
+        &b"ok"[..]
+    );
     upstream_task.await.unwrap();
 }
 

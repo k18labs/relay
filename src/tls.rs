@@ -59,7 +59,7 @@ pub fn load_server_config(config: &TlsConfig) -> Result<Arc<ServerConfig>, TlsCo
         .with_no_client_auth()
         .with_single_cert(certificates, key)
         .map_err(|_| TlsConfigError::CertificateKeyMismatch)?;
-    server.alpn_protocols = vec![b"http/1.1".to_vec()];
+    server.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
     server.max_early_data_size = 0;
     Ok(Arc::new(server))
 }

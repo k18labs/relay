@@ -19,7 +19,7 @@ use http::{
 };
 use http_body::{Body, Frame};
 use http_body_util::{BodyExt, Full, Limited, combinators::UnsyncBoxBody};
-use hyper::{body::Incoming, service::service_fn};
+use hyper::service::service_fn;
 use hyper_rustls::HttpsConnectorBuilder;
 use hyper_util::{
     client::legacy::{Client, connect::HttpConnector},
@@ -44,6 +44,17 @@ type BoxError = Box<dyn Error + Send + Sync>;
 type ProxyBody = UnsyncBoxBody<Bytes, BoxError>;
 type UpstreamConnector = BoundedConnector<hyper_rustls::HttpsConnector<HttpConnector>>;
 type ProxyClient = Client<UpstreamConnector, ProxyBody>;
+
+#[derive(Clone)]
+struct ProxyState {
+    config: Arc<Config>,
+    client: ProxyClient,
+    request_permits: Arc<tokio::sync::Semaphore>,
+    connection_permits: Arc<tokio::sync::Semaphore>,
+    handshake_permits: Arc<tokio::sync::Semaphore>,
+    shutting_down: Arc<AtomicBool>,
+    http3_port: Option<u16>,
+}
 
 #[derive(Clone)]
 struct BoundedConnector<C> {
@@ -108,7 +119,7 @@ where
     }
     let client_tls =
         tls::build_upstream_client_config(&config.tls).map_err(std::io::Error::other)?;
-    run_server(listener, config, None, client_tls, shutdown).await
+    run_server(listener, config, None, client_tls, None, shutdown).await
 }
 
 pub async fn serve_with_tls<F>(
@@ -127,7 +138,47 @@ where
             "server TLS configuration does not match server.tls",
         ));
     }
-    run_server(listener, config, server_tls, client_tls, shutdown).await
+    let http3_endpoint = server_tls
+        .as_ref()
+        .map(|tls| build_http3_endpoint(listener.local_addr()?, tls, &config))
+        .transpose()?;
+    run_server(
+        listener,
+        config,
+        server_tls,
+        client_tls,
+        http3_endpoint,
+        shutdown,
+    )
+    .await
+}
+
+fn build_http3_endpoint(
+    address: std::net::SocketAddr,
+    server_tls: &ServerConfig,
+    config: &Config,
+) -> io::Result<quinn::Endpoint> {
+    let mut tls = server_tls.clone();
+    tls.alpn_protocols = vec![b"h3".to_vec()];
+    tls.max_early_data_size = 0;
+    let crypto = quinn::crypto::rustls::QuicServerConfig::try_from(Arc::new(tls))
+        .map_err(io::Error::other)?;
+    let mut server = quinn::ServerConfig::with_crypto(Arc::new(crypto));
+    let mut transport = quinn::TransportConfig::default();
+    transport
+        .max_concurrent_bidi_streams(quinn::VarInt::from_u32(
+            config.limits.max_concurrent_streams_per_connection as u32,
+        ))
+        .max_concurrent_uni_streams(quinn::VarInt::from_u32(3))
+        .stream_receive_window(quinn::VarInt::from_u32(256 * 1024))
+        .receive_window(quinn::VarInt::from_u32(4 * 1024 * 1024))
+        .send_window(4 * 1024 * 1024);
+    server
+        .max_incoming(config.server.max_connections.min(256))
+        .incoming_buffer_size(64 * 1024)
+        .incoming_buffer_size_total(16 * 1024 * 1024)
+        .transport_config(Arc::new(transport));
+    quinn::Endpoint::server(server, address)
 }
 
 async fn accept_with_retry<F, Fut, T>(mut accept: F) -> std::io::Result<T>
@@ -161,6 +212,7 @@ async fn run_server<F>(
     config: Arc<Config>,
     server_tls: Option<Arc<ServerConfig>>,
     client_tls: Arc<ClientConfig>,
+    http3_endpoint: Option<quinn::Endpoint>,
     shutdown: F,
 ) -> std::io::Result<()>
 where
@@ -203,6 +255,27 @@ where
     let mut connections = JoinSet::new();
     let (connection_shutdown_tx, connection_shutdown_rx) = tokio::sync::watch::channel(false);
     let shutting_down = Arc::new(AtomicBool::new(false));
+    let http3_port = http3_endpoint
+        .as_ref()
+        .map(quinn::Endpoint::local_addr)
+        .transpose()?
+        .map(|address| address.port());
+    let state = ProxyState {
+        config: config.clone(),
+        client: client.clone(),
+        request_permits: request_permits.clone(),
+        connection_permits: permits.clone(),
+        handshake_permits: handshake_permits.clone(),
+        shutting_down: shutting_down.clone(),
+        http3_port,
+    };
+    if let Some(endpoint) = http3_endpoint {
+        let shutdown = connection_shutdown_rx.clone();
+        let state = state.clone();
+        connections.spawn(async move {
+            serve_http3_listener(endpoint, state, shutdown).await;
+        });
+    }
     tokio::pin!(shutdown);
 
     loop {
@@ -220,28 +293,30 @@ where
             accepted = accept_with_retry(|| listener.accept()) => {
                 let (stream, _) = accepted?;
                 let Ok(permit) = permits.clone().try_acquire_owned() else { drop(stream); continue; };
-                let client = client.clone();
-                let config = config.clone();
-                let request_permits = request_permits.clone();
-                let handshake_permits = handshake_permits.clone();
+                let state = state.clone();
                 let tls_acceptor = tls_acceptor.clone();
                 let connection_shutdown = connection_shutdown_rx.clone();
-                let shutting_down = shutting_down.clone();
                 connections.spawn(async move {
                     if let Some(acceptor) = tls_acceptor {
-                        let Ok(handshake_permit) = handshake_permits.try_acquire_owned() else { return; };
+                        let Ok(handshake_permit) = state.handshake_permits.clone().try_acquire_owned() else { return; };
                         let result = tokio::time::timeout(
-                            Duration::from_millis(config.limits.handshake_timeout_ms),
+                            Duration::from_millis(state.config.limits.handshake_timeout_ms),
                             acceptor.accept(stream),
                         ).await;
                         drop(handshake_permit);
                         match result {
-                            Ok(Ok(stream)) => serve_http(stream, permit, config, client, request_permits, connection_shutdown, shutting_down).await,
+                            Ok(Ok(stream)) => {
+                                if stream.get_ref().1.alpn_protocol() == Some(b"h2") {
+                                    serve_http2(stream, permit, state, connection_shutdown).await;
+                                } else {
+                                    serve_http(stream, permit, state, connection_shutdown).await;
+                                }
+                            },
                             Ok(Err(error)) => tracing::debug!(error = %error, "TLS handshake failed"),
                             Err(_) => tracing::debug!("TLS handshake timed out"),
                         }
                     } else {
-                        serve_http(stream, permit, config, client, request_permits, connection_shutdown, shutting_down).await;
+                        serve_http(stream, permit, state, connection_shutdown).await;
                     }
                 });
             }
@@ -271,29 +346,18 @@ where
 async fn serve_http<I>(
     stream: I,
     _connection_permit: tokio::sync::OwnedSemaphorePermit,
-    config: Arc<Config>,
-    client: ProxyClient,
-    request_permits: Arc<tokio::sync::Semaphore>,
+    state: ProxyState,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
-    shutting_down: Arc<AtomicBool>,
 ) where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let io = TokioIo::new(WriteTimeoutIo::new(
         stream,
-        Duration::from_millis(config.limits.downstream_write_timeout_ms),
+        Duration::from_millis(state.config.limits.downstream_write_timeout_ms),
     ));
-    let limits = config.limits.clone();
-    let service_config = config.clone();
-    let service = service_fn(move |request| {
-        forward(
-            request,
-            service_config.clone(),
-            client.clone(),
-            request_permits.clone(),
-            shutting_down.clone(),
-        )
-    });
+    let service_state = state.clone();
+    let service = service_fn(move |request| forward(request, service_state.clone()));
+    let limits = state.config.limits.clone();
     let mut builder = hyper::server::conn::http1::Builder::new();
     builder
         .timer(TokioTimer::new())
@@ -316,6 +380,317 @@ async fn serve_http<I>(
             if let Err(error) = connection.await {
                 tracing::debug!(error = %error, "client connection ended during graceful shutdown");
             }
+        }
+    }
+}
+
+async fn serve_http2<I>(
+    stream: I,
+    _connection_permit: tokio::sync::OwnedSemaphorePermit,
+    state: ProxyState,
+    mut shutdown: tokio::sync::watch::Receiver<bool>,
+) where
+    I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let io = TokioIo::new(WriteTimeoutIo::new(
+        stream,
+        Duration::from_millis(state.config.limits.downstream_write_timeout_ms),
+    ));
+    let service_state = state.clone();
+    let service = service_fn(move |request| forward(request, service_state.clone()));
+    let mut builder = hyper::server::conn::http2::Builder::new(TokioExecutor::new());
+    builder
+        .timer(TokioTimer::new())
+        .max_concurrent_streams(Some(
+            state.config.limits.max_concurrent_streams_per_connection as u32,
+        ))
+        .max_header_list_size(state.config.limits.max_header_bytes as u32)
+        .max_pending_accept_reset_streams(Some(16))
+        .max_send_buf_size(16 * 1024);
+    let connection = builder.serve_connection(io, service);
+    tokio::pin!(connection);
+    tokio::select! {
+        result = &mut connection => {
+            if let Err(error) = result {
+                tracing::debug!(error = %error, "HTTP/2 connection ended");
+            }
+        }
+        result = shutdown.changed() => {
+            if result.is_ok() && *shutdown.borrow() {
+                connection.as_mut().graceful_shutdown();
+            }
+            if let Err(error) = connection.await {
+                tracing::debug!(error = %error, "HTTP/2 connection ended during graceful shutdown");
+            }
+        }
+    }
+}
+
+async fn serve_http3_listener(
+    endpoint: quinn::Endpoint,
+    state: ProxyState,
+    mut shutdown: tokio::sync::watch::Receiver<bool>,
+) {
+    let mut connections = JoinSet::new();
+    loop {
+        tokio::select! {
+            result = shutdown.changed() => {
+                if result.is_ok() && *shutdown.borrow() {
+                    break;
+                }
+            }
+            Some(result) = connections.join_next(), if !connections.is_empty() => {
+                if let Err(error) = result {
+                    tracing::debug!(error = %error, "HTTP/3 connection task ended");
+                }
+            }
+            incoming = endpoint.accept() => {
+                let Some(incoming) = incoming else { break; };
+                let Ok(connection_permit) = state.connection_permits.clone().try_acquire_owned() else {
+                    drop(incoming);
+                    continue;
+                };
+                let Ok(handshake_permit) = state.handshake_permits.clone().try_acquire_owned() else {
+                    drop(incoming);
+                    drop(connection_permit);
+                    continue;
+                };
+                let state = state.clone();
+                let connection_shutdown = shutdown.clone();
+                connections.spawn(async move {
+                    let result = tokio::time::timeout(
+                        Duration::from_millis(state.config.limits.handshake_timeout_ms),
+                        incoming,
+                    ).await;
+                    drop(handshake_permit);
+                    match result {
+                        Ok(Ok(connection)) => {
+                            serve_http3_connection(
+                                connection,
+                                connection_permit,
+                                state,
+                                connection_shutdown,
+                            ).await;
+                        }
+                        Ok(Err(error)) => tracing::debug!(error = %error, "HTTP/3 handshake failed"),
+                        Err(_) => tracing::debug!("HTTP/3 handshake timed out"),
+                    }
+                });
+            }
+        }
+    }
+
+    let drain = async {
+        while let Some(result) = connections.join_next().await {
+            if let Err(error) = result {
+                tracing::debug!(error = %error, "HTTP/3 connection task ended during shutdown");
+            }
+        }
+    };
+    if tokio::time::timeout(
+        Duration::from_millis(state.config.limits.shutdown_timeout_ms),
+        drain,
+    )
+    .await
+    .is_err()
+    {
+        connections.abort_all();
+        while connections.join_next().await.is_some() {}
+    }
+    endpoint.close(0u32.into(), b"server shutdown");
+}
+
+async fn serve_http3_connection(
+    connection: quinn::Connection,
+    _connection_permit: tokio::sync::OwnedSemaphorePermit,
+    state: ProxyState,
+    mut shutdown: tokio::sync::watch::Receiver<bool>,
+) {
+    let mut builder = h3::server::builder();
+    builder.max_field_section_size(state.config.limits.max_header_bytes as u64);
+    let Ok(mut connection) = builder
+        .build::<_, Bytes>(h3_quinn::Connection::new(connection))
+        .await
+    else {
+        return;
+    };
+    let mut streams = JoinSet::new();
+    loop {
+        tokio::select! {
+            result = shutdown.changed() => {
+                if result.is_ok() && *shutdown.borrow() {
+                    let _ = connection.shutdown(0).await;
+                    break;
+                }
+            }
+            Some(result) = streams.join_next(), if !streams.is_empty() => {
+                if let Err(error) = result {
+                    tracing::debug!(error = %error, "HTTP/3 request task ended");
+                }
+            }
+            request = connection.accept() => match request {
+                Ok(Some(resolver)) => {
+                    let state = state.clone();
+                    streams.spawn(async move {
+                        let Ok(Ok((request, stream))) = tokio::time::timeout(
+                            Duration::from_millis(state.config.limits.header_timeout_ms),
+                            resolver.resolve_request(),
+                        ).await else { return; };
+                        let (send_stream, receive_stream) = stream.split();
+                        let request = request.map(|()| H3RequestBody::new(receive_stream));
+                        handle_http3_request(
+                            request,
+                            send_stream,
+                            state,
+                        ).await;
+                    });
+                }
+                Ok(None) | Err(_) => break,
+            }
+        }
+    }
+
+    let drain = async {
+        while let Some(result) = streams.join_next().await {
+            if let Err(error) = result {
+                tracing::debug!(error = %error, "HTTP/3 request task ended during shutdown");
+            }
+        }
+    };
+    if tokio::time::timeout(
+        Duration::from_millis(state.config.limits.shutdown_timeout_ms),
+        drain,
+    )
+    .await
+    .is_err()
+    {
+        streams.abort_all();
+        while streams.join_next().await.is_some() {}
+    }
+}
+
+struct H3RequestBody<S> {
+    stream: h3::server::RequestStream<S, Bytes>,
+    trailers: bool,
+    done: bool,
+}
+
+async fn handle_http3_request<S, B>(
+    request: Request<B>,
+    mut stream: h3::server::RequestStream<S, Bytes>,
+    state: ProxyState,
+) where
+    S: h3::quic::SendStream<Bytes> + Send + 'static,
+    B: Body<Data = Bytes> + Send + 'static,
+    B::Error: Into<BoxError>,
+{
+    let write_timeout = Duration::from_millis(state.config.limits.downstream_write_timeout_ms);
+    let response = match forward(request, state).await {
+        Ok(response) => response,
+        Err(never) => match never {},
+    };
+    let (parts, mut body) = response.into_parts();
+    if !matches!(
+        tokio::time::timeout(
+            write_timeout,
+            stream.send_response(Response::from_parts(parts, ()))
+        )
+        .await,
+        Ok(Ok(()))
+    ) {
+        return;
+    }
+    while let Some(frame) = body.frame().await {
+        match frame {
+            Ok(frame) => match frame.into_data() {
+                Ok(data) => {
+                    if !matches!(
+                        tokio::time::timeout(write_timeout, stream.send_data(data)).await,
+                        Ok(Ok(()))
+                    ) {
+                        return;
+                    }
+                }
+                Err(frame) => {
+                    if let Ok(trailers) = frame.into_trailers()
+                        && !matches!(
+                            tokio::time::timeout(write_timeout, stream.send_trailers(trailers))
+                                .await,
+                            Ok(Ok(()))
+                        )
+                    {
+                        return;
+                    }
+                }
+            },
+            Err(_) => {
+                stream.stop_stream(h3::error::Code::H3_INTERNAL_ERROR);
+                return;
+            }
+        }
+    }
+    match tokio::time::timeout(write_timeout, stream.finish()).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => tracing::debug!(error = %error, "HTTP/3 response stream finish failed"),
+        Err(_) => tracing::debug!("HTTP/3 response stream finish timed out"),
+    }
+}
+
+impl<S> H3RequestBody<S> {
+    fn new(stream: h3::server::RequestStream<S, Bytes>) -> Self {
+        Self {
+            stream,
+            trailers: false,
+            done: false,
+        }
+    }
+}
+
+impl<S> Unpin for H3RequestBody<S> {}
+
+impl<S> Body for H3RequestBody<S>
+where
+    S: h3::quic::RecvStream + Send + 'static,
+{
+    type Data = Bytes;
+    type Error = BoxError;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        let this = self.get_mut();
+        if this.done {
+            return Poll::Ready(None);
+        }
+        if !this.trailers {
+            match this.stream.poll_recv_data(cx) {
+                Poll::Ready(Ok(Some(mut data))) => {
+                    let bytes = data.copy_to_bytes(data.remaining());
+                    return Poll::Ready(Some(Ok(Frame::data(bytes))));
+                }
+                Poll::Ready(Ok(None)) => this.trailers = true,
+                Poll::Ready(Err(error)) => {
+                    this.done = true;
+                    return Poll::Ready(Some(Err(Box::new(error))));
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        match this.stream.poll_recv_trailers(cx) {
+            Poll::Ready(Ok(Some(trailers))) => {
+                this.done = true;
+                Poll::Ready(Some(Ok(Frame::trailers(trailers))))
+            }
+            Poll::Ready(Ok(None)) => {
+                this.done = true;
+                Poll::Ready(None)
+            }
+            Poll::Ready(Err(error)) => {
+                this.done = true;
+                Poll::Ready(Some(Err(Box::new(error))))
+            }
+            Poll::Pending => Poll::Pending,
         }
     }
 }
@@ -410,40 +785,72 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for WriteTimeoutIo<T> {
     }
 }
 
-async fn forward(
-    mut request: Request<Incoming>,
-    config: Arc<Config>,
-    client: ProxyClient,
-    request_permits: Arc<tokio::sync::Semaphore>,
-    shutting_down: Arc<AtomicBool>,
-) -> Result<Response<ProxyBody>, Infallible> {
-    if shutting_down.load(Ordering::Acquire) {
+async fn forward<B>(
+    mut request: Request<B>,
+    state: ProxyState,
+) -> Result<Response<ProxyBody>, Infallible>
+where
+    B: Body<Data = Bytes> + Send + 'static,
+    B::Error: Into<BoxError>,
+{
+    if state.shutting_down.load(Ordering::Acquire) {
         return Ok(simple_response(StatusCode::SERVICE_UNAVAILABLE, true));
     }
+    let config = &state.config;
     if request.method() == http::Method::CONNECT || request.headers().contains_key(header::UPGRADE)
     {
         return Ok(simple_response(StatusCode::NOT_IMPLEMENTED, true));
-    }
-    if request.uri().scheme().is_some() || request.uri().authority().is_some() {
-        return Ok(simple_response(StatusCode::BAD_REQUEST, true));
     }
     if !request.uri().path().starts_with('/') {
         return Ok(simple_response(StatusCode::BAD_REQUEST, true));
     }
     let hosts: Vec<_> = request.headers().get_all(header::HOST).iter().collect();
-    if hosts.len() != 1 {
+    if request.headers().len() > config.limits.max_header_count {
+        return Ok(simple_response(
+            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            true,
+        ));
+    }
+    let authority = match request.version() {
+        http::Version::HTTP_2 | http::Version::HTTP_3 => {
+            if request.uri().scheme_str() != Some("https") {
+                return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+            }
+            let Some(authority) = request.uri().authority() else {
+                return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+            };
+            if hosts.len() > 1
+                || hosts.first().is_some_and(|host| {
+                    host.to_str()
+                        .ok()
+                        .and_then(|host| host.parse::<http::uri::Authority>().ok())
+                        .is_none_or(|host| !same_authority(&host, authority, 443))
+                })
+            {
+                return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+            }
+            authority.clone()
+        }
+        _ => {
+            if request.uri().scheme().is_some()
+                || request.uri().authority().is_some()
+                || hosts.len() != 1
+            {
+                return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+            }
+            let Ok(host_value) = hosts[0].to_str() else {
+                return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+            };
+            let Ok(authority) = host_value.parse::<http::uri::Authority>() else {
+                return Ok(simple_response(StatusCode::BAD_REQUEST, true));
+            };
+            authority
+        }
+    };
+    if authority.as_str().contains('@') || !config::authority_port_is_valid(&authority) {
         return Ok(simple_response(StatusCode::BAD_REQUEST, true));
     }
-    let Ok(host_value) = hosts[0].to_str() else {
-        return Ok(simple_response(StatusCode::BAD_REQUEST, true));
-    };
-    let Ok(host_authority) = host_value.parse::<http::uri::Authority>() else {
-        return Ok(simple_response(StatusCode::BAD_REQUEST, true));
-    };
-    if host_authority.as_str().contains('@') || !config::authority_port_is_valid(&host_authority) {
-        return Ok(simple_response(StatusCode::BAD_REQUEST, true));
-    }
-    let host = host_authority.host().to_owned();
+    let host = authority.host().to_owned();
     let transfer_encoding = request.headers().get_all(header::TRANSFER_ENCODING);
     if transfer_encoding.iter().count() > 1
         || transfer_encoding
@@ -464,7 +871,7 @@ async fn forward(
     {
         return Ok(simple_response(StatusCode::PAYLOAD_TOO_LARGE, true));
     }
-    let Ok(request_permit) = request_permits.try_acquire_owned() else {
+    let Ok(request_permit) = state.request_permits.clone().try_acquire_owned() else {
         return Ok(simple_response(StatusCode::SERVICE_UNAVAILABLE, true));
     };
 
@@ -503,12 +910,16 @@ async fn forward(
     };
     request.headers_mut().insert(header::HOST, value);
     *request.uri_mut() = upstream;
+    *request.version_mut() = http::Version::HTTP_11;
 
     let body_limit_hit = Arc::new(AtomicBool::new(false));
     let body_limit_for_error = body_limit_hit.clone();
     let body_timeout_hit = Arc::new(AtomicBool::new(false));
     let body_timeout_for_error = body_timeout_hit.clone();
     let (parts, body) = request.into_parts();
+    let body = body
+        .map_err(|error| -> BoxError { error.into() })
+        .boxed_unsync();
     let limited = Limited::new(body, config.limits.max_body_bytes).map_err(move |error| {
         if error
             .downcast_ref::<http_body_util::LengthLimitError>()
@@ -528,7 +939,7 @@ async fn forward(
     let request = Request::from_parts(parts, body);
     let response = tokio::time::timeout(
         Duration::from_millis(config.limits.response_timeout_ms),
-        client.request(request),
+        state.client.request(request),
     )
     .await;
 
@@ -561,7 +972,13 @@ async fn forward(
                 Some(request_permit),
             )
             .boxed_unsync();
-            Ok(Response::from_parts(parts, body))
+            let mut response = Response::from_parts(parts, body);
+            if let Some(port) = state.http3_port
+                && let Ok(value) = HeaderValue::from_str(&format!("h3=\":{port}\"; ma=86400"))
+            {
+                response.headers_mut().insert(header::ALT_SVC, value);
+            }
+            Ok(response)
         }
         Ok(Err(error)) => {
             if body_limit_hit.load(Ordering::Relaxed) {
@@ -575,6 +992,15 @@ async fn forward(
         }
         Err(_) => Ok(simple_response(StatusCode::GATEWAY_TIMEOUT, true)),
     }
+}
+
+fn same_authority(
+    left: &http::uri::Authority,
+    right: &http::uri::Authority,
+    default_port: u16,
+) -> bool {
+    config::normalize_host(left.host()) == config::normalize_host(right.host())
+        && left.port_u16().unwrap_or(default_port) == right.port_u16().unwrap_or(default_port)
 }
 
 struct DeadlineBody<B> {
@@ -641,7 +1067,7 @@ where
     }
 }
 
-fn upstream_uri(route: &Route, request: &Request<Incoming>) -> Result<Uri, ()> {
+fn upstream_uri<B>(route: &Route, request: &Request<B>) -> Result<Uri, ()> {
     let origin = route.upstream.parse::<Uri>().map_err(|_| ())?;
     let scheme = origin.scheme_str().ok_or(())?;
     let authority = origin.authority().ok_or(())?;

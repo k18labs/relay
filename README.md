@@ -1,10 +1,10 @@
 # Relay
 
-Relay is a small Rust HTTP/1.1 reverse proxy by k18 Labs. It routes only to configured upstream origins and uses Hyper, Tokio, and rustls for protocol and transport handling.
+Relay is a small Rust reverse proxy by k18 Labs. It accepts HTTP/1.1 and HTTP/2 over TCP/TLS and HTTP/3 over QUIC/TLS, routes only to configured upstream origins, and uses Hyper, Tokio, rustls, Quinn, and `h3` for protocol and transport handling. Upstream requests currently use HTTP/1.1.
 
 ## Development status
 
-The current implementation supports inbound TLS 1.3, verified HTTPS upstreams, strict TOML configuration, host/path routing, streaming HTTP bodies, connection reuse, request and connection admission limits, header/body limits, timeouts, and bounded graceful shutdown. Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and repeat-build checks; fuzz smoke and repeated normal/connection-cap load runs also passed. Full performance characterization, an external independent security review, and verified release artifacts remain incomplete. This is not a production release.
+The current implementation supports inbound TLS 1.3, HTTP/1.1 and HTTP/2 over TCP, HTTP/3 over UDP when TLS is enabled, verified HTTPS upstreams, strict TOML configuration, host/path routing, streaming HTTP bodies, connection reuse, request and connection admission limits, header/body limits, timeouts, and bounded graceful shutdown. External HTTP/3 response termination is under investigation: one curl smoke probe received the payload but reported a QUIC stream reset. Full performance characterization, an external independent security review, and verified release artifacts remain incomplete. This is not a production release.
 
 ## Build and run
 
@@ -17,11 +17,11 @@ cargo run -- check --config relay.example.toml
 cargo run -- run --config relay.example.toml
 ```
 
-TLS is enabled by default. Set `tls.certificate` and `tls.private_key` to PEM files. Set `server.tls = false` only for local plaintext development. HTTPS upstream certificates and hostnames are verified using the system-independent WebPKI roots plus optional configured CA files.
+TLS is enabled by default. Set `tls.certificate` and `tls.private_key` to PEM files. With TLS enabled, HTTP/2 is negotiated over TCP and HTTP/3 binds UDP on the same numeric port as `server.listen`; both transports use the same configured routes and limits. Set `server.tls = false` only for local plaintext development. HTTPS upstream certificates and hostnames are verified using the system-independent WebPKI roots plus optional configured CA files.
 
 Routes match a normalized host and a segment-boundary path prefix; the longest matching path wins. Upstream destinations come only from configuration. `CONNECT` and protocol upgrades return 501. Forwarded client identity headers are stripped rather than trusted or generated.
 
-See [configuration](docs/CONFIGURATION.md), [design](DESIGN.md), [threat model](docs/THREAT_MODEL.md), [testing](docs/TESTING.md), and [roadmap](ROADMAP.md).
+See [configuration](docs/CONFIGURATION.md), [design](DESIGN.md), [threat model](docs/THREAT_MODEL.md), [benchmark report](docs/BENCHMARKS.md), [testing](docs/TESTING.md), and [roadmap](ROADMAP.md).
 
 ## License
 

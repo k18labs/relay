@@ -19,11 +19,14 @@ jobs:
           rustup toolchain install nightly-2026-11-25 --profile minimal
           cargo +nightly-2026-11-25 install cargo-fuzz --version 0.13.2 --locked
       - name: Build fuzz targets
-        run: cargo +nightly-2026-11-25 fuzz build --fuzz-dir fuzz
+        run: |
+          for target in config_routes host_normalization header_policy; do
+            cargo +nightly-2026-11-25 fuzz build "$target" --fuzz-dir fuzz
+          done
       - name: Bounded fuzz smoke
         run: |
           for target in config_routes host_normalization header_policy; do
-            cargo +nightly-2026-11-25 fuzz run --fuzz-dir fuzz "$target" -- -max_total_time=30 -max_len=65536 -timeout=5
+            cargo +nightly-2026-11-25 fuzz run "$target" --fuzz-dir fuzz -- -max_total_time=30 -max_len=65536 -timeout=5
           done
       - name: Save crash artifacts
         if: failure()

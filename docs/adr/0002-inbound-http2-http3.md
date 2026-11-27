@@ -1,0 +1,8 @@
+# ADR 0002: Inbound HTTP/2 and HTTP/3
+
+- Status: accepted for implementation
+- Decision: preserve HTTP/1.1 on the TCP listener, negotiate HTTP/2 with TLS ALPN `h2`, and serve HTTP/3 on a QUIC UDP listener bound to the same address and port. Both protocols use the existing route, header-policy, request-limit, body-streaming, logging, and configured-upstream path. Upstream transport remains the existing HTTP/1.1 client for this release.
+- Context: the initial scope excluded HTTP/2 and HTTP/3. The project owner explicitly requested support for both and comparison benchmarks against Caddy, NGINX, and Apache. Hyper provides the existing safe HTTP/1 implementation; Quinn, rustls, and `h3` provide established QUIC/TLS/HTTP/3 implementations.
+- Security constraints: TLS 1.3 only; reject 0-RTT; no custom protocol parsing or cryptography; bound QUIC connections, concurrent requests/streams, request and response bodies, handshake time, transport buffers, and shutdown; validate both TCP and UDP binds before startup; never advertise HTTP/3 unless its listener is active.
+- Alternatives: keep HTTP/3 deferred (does not meet the explicit request); or add a separate HTTP/3 port (unnecessary operational split and nonstandard discovery for this small service).
+- Consequences: enabling TLS requires both TCP and UDP sockets at the configured port. Cleartext mode remains HTTP/1.1 only. If UDP binding fails, startup fails before serving. HTTP/3 support adds QUIC dependencies and must remain covered by dependency, fuzz, integration, and resource-limit review. Benchmarks report each server/protocol combination only when that exact protocol is enabled.

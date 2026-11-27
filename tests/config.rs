@@ -88,6 +88,20 @@ fn rejects_a_zero_request_body_limit() {
 }
 
 #[test]
+fn accepts_a_bounded_http2_stream_limit() {
+    let input = format!("{VALID}\n[limits]\nmax_concurrent_streams_per_connection = 32\n");
+    assert!(Config::parse(&input).is_ok());
+}
+
+#[test]
+fn rejects_http2_stream_limits_outside_supported_bounds() {
+    for limit in [0, 1025] {
+        let input = format!("{VALID}\n[limits]\nmax_concurrent_streams_per_connection = {limit}\n");
+        assert!(Config::parse(&input).is_err(), "limit={limit}");
+    }
+}
+
+#[test]
 fn accepts_verified_https_upstream_origins() {
     let input = VALID.replace("http://", "https://");
     assert!(Config::parse(&input).is_ok());

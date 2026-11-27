@@ -57,6 +57,7 @@ pub struct Limits {
     pub max_header_count: usize,
     pub max_body_bytes: usize,
     pub max_concurrent_requests: usize,
+    pub max_concurrent_streams_per_connection: usize,
     pub max_concurrent_tls_handshakes: usize,
     pub header_timeout_ms: u64,
     pub handshake_timeout_ms: u64,
@@ -76,6 +77,7 @@ impl Default for Limits {
             max_header_count: 64,
             max_body_bytes: 10 * 1024 * 1024,
             max_concurrent_requests: 1024,
+            max_concurrent_streams_per_connection: 64,
             max_concurrent_tls_handshakes: 128,
             header_timeout_ms: 5_000,
             handshake_timeout_ms: 5_000,
@@ -159,11 +161,13 @@ impl Config {
             || self.limits.max_body_bytes > 1024 * 1024 * 1024
             || self.limits.max_concurrent_requests == 0
             || self.limits.max_concurrent_requests > 65_536
+            || self.limits.max_concurrent_streams_per_connection == 0
+            || self.limits.max_concurrent_streams_per_connection > 1024
             || self.limits.max_concurrent_tls_handshakes == 0
             || self.limits.max_concurrent_tls_handshakes > 65_536
         {
             return Err(ConfigError::Invalid(
-                "limits are outside supported bounds (headers: 8192 bytes to 1 MiB and 1 to 1024 fields; body: 1 byte to 1 GiB; concurrent requests and TLS handshakes: 1 to 65536)".into(),
+                "limits are outside supported bounds (headers: 8192 bytes to 1 MiB and 1 to 1024 fields; body: 1 byte to 1 GiB; concurrent requests and TLS handshakes: 1 to 65536; concurrent streams per connection: 1 to 1024)".into(),
             ));
         }
         if self.limits.header_timeout_ms == 0

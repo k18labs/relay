@@ -11,6 +11,7 @@ use relay::{
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
+    sync::{Semaphore, mpsc},
     task::JoinHandle,
 };
 use tokio_rustls::TlsAcceptor;
@@ -303,6 +304,135 @@ async fn negotiates_http2_and_forwards_using_the_authority_for_routing() {
         &b"ok"[..]
     );
     upstream_task.await.unwrap();
+}
+
+#[tokio::test]
+async fn limits_concurrent_http2_streams_on_a_single_connection() {
+    let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let upstream_address = upstream.local_addr().unwrap();
+    let gates = Arc::new(Semaphore::new(0));
+    let (started_tx, mut started_rx) = mpsc::unbounded_channel();
+    let upstream_gates = gates.clone();
+    let upstream_task = tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = upstream.accept().await else {
+                return;
+            };
+            let gates = upstream_gates.clone();
+            let started = started_tx.clone();
+            tokio::spawn(async move {
+                read_headers(&mut stream).await;
+                if started.send(()).is_err() {
+                    return;
+                }
+                let Ok(permit) = gates.acquire_owned().await else {
+                    return;
+                };
+                permit.forget();
+                let _ = stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+                    )
+                    .await;
+            });
+        }
+    });
+
+    let certificate = fixture_toml_path("localhost-cert.pem");
+    let private_key = fixture_toml_path("localhost-key.pem");
+    let text = format!(
+        "[server]\nlisten = \"127.0.0.1:0\"\nmax_connections = 8\n\n[limits]\nmax_concurrent_requests = 8\nmax_concurrent_streams_per_connection = 1\n\n[tls]\ncertificate = \"{certificate}\"\nprivate_key = \"{private_key}\"\n\n[[routes]]\nhost = \"example.org\"\npath = \"/\"\nupstream = \"http://{upstream_address}\"\n"
+    );
+    let config = Arc::new(Config::parse(&text).unwrap());
+    let server_tls = tls::load_server_config(&config.tls).unwrap();
+    let client_tls = tls::build_upstream_client_config(&config.tls).unwrap();
+    let listener = TcpListener::bind(config.server.listen).await.unwrap();
+    let relay_address = listener.local_addr().unwrap();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+    let server_task = tokio::spawn(proxy::serve_with_tls(
+        listener,
+        config,
+        Some(server_tls),
+        client_tls,
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+
+    let tcp = TcpStream::connect(relay_address).await.unwrap();
+    let server_name = rustls::pki_types::ServerName::try_from("localhost").unwrap();
+    let mut client_tls = (*tls::build_upstream_client_config(&TlsConfig {
+        certificate: None,
+        private_key: None,
+        upstream_ca_files: vec![fixture("test-ca.pem")],
+    })
+    .unwrap())
+    .clone();
+    client_tls.alpn_protocols = vec![b"h2".to_vec()];
+    let client = tokio_rustls::TlsConnector::from(Arc::new(client_tls))
+        .connect(server_name, tcp)
+        .await
+        .unwrap();
+    let (sender, connection) =
+        hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(client))
+            .await
+            .unwrap();
+    let connection_task = tokio::spawn(async move {
+        let _ = connection.await;
+    });
+
+    let requests = (0..8)
+        .map(|_| {
+            let mut sender = sender.clone();
+            tokio::spawn(async move {
+                let request = Request::builder()
+                    .uri("https://example.org/stream")
+                    .header(header::HOST, "example.org")
+                    .body(Full::new(Bytes::new()))
+                    .unwrap();
+                let response = sender.send_request(request).await.unwrap();
+                assert_eq!(response.status(), http::StatusCode::OK);
+                assert_eq!(
+                    response.into_body().collect().await.unwrap().to_bytes(),
+                    &b"ok"[..]
+                );
+            })
+        })
+        .collect::<Vec<_>>();
+
+    tokio::time::timeout(Duration::from_secs(3), started_rx.recv())
+        .await
+        .expect("first upstream request timed out")
+        .expect("upstream task stopped");
+    assert!(
+        tokio::time::timeout(Duration::from_millis(150), started_rx.recv())
+            .await
+            .is_err(),
+        "a second HTTP/2 stream exceeded the configured per-connection limit"
+    );
+
+    gates.add_permits(1);
+    tokio::time::timeout(Duration::from_secs(3), started_rx.recv())
+        .await
+        .expect("next upstream request did not start after capacity was released")
+        .expect("upstream task stopped");
+    gates.add_permits(7);
+    for request in requests {
+        tokio::time::timeout(Duration::from_secs(3), request)
+            .await
+            .expect("HTTP/2 request timed out")
+            .unwrap();
+    }
+
+    drop(sender);
+    connection_task.abort();
+    upstream_task.abort();
+    let _ = shutdown_tx.send(());
+    tokio::time::timeout(Duration::from_secs(3), server_task)
+        .await
+        .expect("Relay shutdown timed out")
+        .unwrap()
+        .unwrap();
 }
 
 #[tokio::test]

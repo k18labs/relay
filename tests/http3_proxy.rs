@@ -425,6 +425,113 @@ async fn canceled_http3_upload_releases_request_capacity_on_the_connection() {
 }
 
 #[tokio::test]
+#[ignore = "Known h3-quinn 0.0.10 panic when stop_sending races a pending read; see ROADMAP"]
+async fn stalled_http3_upload_times_out_and_releases_request_capacity() {
+    let (upstream, mut started_rx, upstream_task) = start_immediate_upstream().await;
+    let certificate = fixture("localhost-cert.pem")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let private_key = fixture("localhost-key.pem")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let config_text = format!(
+        "[server]\nlisten = \"127.0.0.1:0\"\nmax_connections = 8\n\n[limits]\nbody_idle_timeout_ms = 100\nmax_concurrent_requests = 1\nmax_concurrent_streams_per_connection = 1\n\n[tls]\ncertificate = \"{certificate}\"\nprivate_key = \"{private_key}\"\n\n[[routes]]\nhost = \"example.org\"\npath = \"/\"\nupstream = \"http://{upstream}\"\n"
+    );
+    let config = Arc::new(Config::parse(&config_text).unwrap());
+    let server_tls = tls::load_server_config(&config.tls).unwrap();
+    let client_tls = tls::build_upstream_client_config(&config.tls).unwrap();
+    let listener = TcpListener::bind(config.server.listen).await.unwrap();
+    let relay_address = listener.local_addr().unwrap();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+    let server_task = tokio::spawn(proxy::serve_with_tls(
+        listener,
+        config,
+        Some(server_tls),
+        client_tls,
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+
+    let mut client_tls = (*tls::build_upstream_client_config(&TlsConfig {
+        certificate: None,
+        private_key: None,
+        upstream_ca_files: vec![fixture("test-ca.pem")],
+    })
+    .unwrap())
+    .clone();
+    client_tls.alpn_protocols = vec![b"h3".to_vec()];
+    let crypto = quinn::crypto::rustls::QuicClientConfig::try_from(Arc::new(client_tls)).unwrap();
+    let mut endpoint = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).unwrap();
+    endpoint.set_default_client_config(quinn::ClientConfig::new(Arc::new(crypto)));
+    let connection = tokio::time::timeout(
+        Duration::from_secs(3),
+        endpoint.connect(relay_address, "localhost").unwrap(),
+    )
+    .await
+    .expect("QUIC handshake timed out")
+    .expect("QUIC connection failed");
+    let mut builder = h3::client::builder();
+    let (mut driver, mut sender) = builder
+        .build::<_, _, Bytes>(h3_quinn::Connection::new(connection))
+        .await
+        .unwrap();
+    let driver_task = tokio::spawn(async move { driver.wait_idle().await });
+
+    let request = Request::post("https://example.org/stalled-upload")
+        .body(())
+        .unwrap();
+    let mut stalled = sender.send_request(request).await.unwrap();
+    tokio::time::timeout(Duration::from_secs(3), started_rx.recv())
+        .await
+        .expect("stalled request did not reach upstream")
+        .expect("upstream task stopped");
+    let response = tokio::time::timeout(Duration::from_secs(3), stalled.recv_response())
+        .await
+        .expect("stalled request did not time out")
+        .unwrap();
+    assert_eq!(response.status(), http::StatusCode::REQUEST_TIMEOUT);
+    while let Some(_chunk) = stalled.recv_data().await.unwrap() {}
+
+    let request = Request::get("https://example.org/after-timeout")
+        .body(())
+        .unwrap();
+    let mut next = tokio::time::timeout(Duration::from_secs(3), sender.send_request(request))
+        .await
+        .expect("follow-up request was blocked by the per-connection stream limit")
+        .expect("follow-up request could not open a stream");
+    next.finish().await.unwrap();
+    let response = tokio::time::timeout(Duration::from_secs(3), next.recv_response())
+        .await
+        .expect("follow-up request did not receive a response")
+        .unwrap();
+    assert_eq!(response.status(), http::StatusCode::OK);
+    let mut body = Vec::new();
+    while let Some(mut chunk) = next.recv_data().await.unwrap() {
+        while chunk.has_remaining() {
+            let part = chunk.chunk();
+            body.extend_from_slice(part);
+            let count = part.len();
+            chunk.advance(count);
+        }
+    }
+    assert_eq!(body, b"ok");
+
+    endpoint.close(0u32.into(), b"test complete");
+    let _driver_result = tokio::time::timeout(Duration::from_secs(3), driver_task)
+        .await
+        .expect("HTTP/3 client driver shutdown timed out")
+        .unwrap();
+    upstream_task.abort();
+    let _ = shutdown_tx.send(());
+    tokio::time::timeout(Duration::from_secs(3), server_task)
+        .await
+        .expect("Relay shutdown timed out")
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
 async fn limits_concurrent_http3_streams_on_a_single_connection() {
     let (upstream, mut started_rx, gates, upstream_task) = start_gated_upstream().await;
     let certificate = fixture("localhost-cert.pem")

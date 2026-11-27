@@ -2,9 +2,8 @@ use std::{
     convert::Infallible,
     io::{self, Write},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
-        Mutex,
     },
     time::Duration,
 };

@@ -36,6 +36,12 @@ After the fix, curl 8.21.0 negotiated HTTP/3, received all 1,024 response bytes,
 
 These are diagnostic WSL2 ARM64 curl measurements on one workload and one host. They are not native-host release evidence or a performance ranking. Exact versions, per-run throughput and latency, and client output are in the [raw HTTP/3 results](perf-results/2026-11-27-wsl-arm64-http3-curl-comparison.txt); the separate [curl interoperability smoke log](perf-results/2026-11-27-wsl-arm64-h3-curl-smoke.txt) records the initial protocol check and h2load attempt.
 
+## QEMU user-mode smoke
+
+A single HTTP/1.1 smoke run on 2026-11-28 used `qemu-aarch64` 11.1.0 to run Relay's AArch64 release binary on the WSL2 ARM64 host (Oryon CPU). `h2load --h1` sent 1,000 requests with 20 clients and 4 threads against a fixed 1 KiB body from a local Python HTTP/1.0 upstream. All 1,000 direct-upstream and all 1,000 proxied requests succeeded. Direct upstream measured 443.92 requests/s with p95 6.71 ms; Relay through QEMU measured 431.37 requests/s with p95 9.22 ms. QEMU startup-to-ready was 131 ms, QEMU process RSS was 25,740 KiB, and the stripped binary was 6,375,200 bytes. The raw output is in [`2026-11-28-wsl-qemu-aarch64-h1-smoke.txt`](perf-results/2026-11-28-wsl-qemu-aarch64-h1-smoke.txt).
+
+This was one short emulated run with noisy tail latency. The QEMU process RSS includes emulator overhead; the upstream baseline is not a competitor proxy. These figures are diagnostic only and do not satisfy physical-host characterization or support a performance claim.
+
 ## Limitations
 
 - WSL2 virtualization, host scheduling, the Windows-mounted checkout, and the local Python threaded upstream affect results.

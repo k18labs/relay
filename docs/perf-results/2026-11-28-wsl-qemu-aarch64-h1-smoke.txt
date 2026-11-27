@@ -1,0 +1,66 @@
+qemu-aarch64 version 11.1.0 (Debian 1:11.1.0+ds-2)
+Linux SURFACE-LAPTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 00:46:21 UTC 2026 aarch64 GNU/Linux
+cpu=Oryon
+relay_binary_arch=ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=1081bed03853c3584e778689f9e2d12686a8692e, for GNU/Linux 3.7.0, stripped
+relay_binary_bytes=6375200
+relay=relay 0.1.0 (aarch64)
+cargo=cargo 1.96.0 (30a34c682 2026-05-25)
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+workload=h2load --h1, 1000 requests, 20 clients, 4 threads, fixed 1024-byte body, loopback
+upstream_direct:
+starting benchmark...
+spawning thread #0: 5 total client(s). 250 total requests
+spawning thread #1: 5 total client(s). 250 total requests
+spawning thread #2: 5 total client(s). 250 total requests
+spawning thread #3: 5 total client(s). 250 total requests
+Application protocol: http/1.1
+progress: 10% done
+progress: 20% done
+progress: 30% done
+progress: 40% done
+progress: 50% done
+progress: 60% done
+progress: 70% done
+progress: 80% done
+progress: 90% done
+progress: 100% done
+
+finished in 2.25s, 443.92 req/s, 525.42KB/s
+requests: 1000 total, 1000 started, 1000 done, 1000 succeeded, 0 failed, 0 errored, 0 timeout
+status codes: 1000 2xx, 0 3xx, 0 4xx, 0 5xx
+traffic: 1.16MB (1212000) total, 145.51KB (149000) headers (space savings 0.00%), 1000.00KB (1024000) data
+                 min         max         median      p95         p99         mean        sd         +/- sd
+request     :      239us    418.50ms      3.84ms      6.71ms     14.25ms      6.16ms     28.53ms    99.30%
+connect     :       22us       274us        62us       274us       274us        65us        53us    95.00%
+TTFB        :      296us      5.70ms      1.98ms      5.70ms      5.70ms      2.54ms      1.76ms    70.00%
+req/s       :      22.20      251.94       37.18      251.94      251.94       96.24      100.00    70.00%
+relay_startup_to_http_ready_ms=131
+relay_qemu_host_rss_kib=25740
+relay_via_qemu:
+starting benchmark...
+spawning thread #0: 5 total client(s). 250 total requests
+spawning thread #1: 5 total client(s). 250 total requests
+spawning thread #2: 5 total client(s). 250 total requests
+spawning thread #3: 5 total client(s). 250 total requests
+Application protocol: http/1.1
+progress: 10% done
+progress: 20% done
+progress: 30% done
+progress: 40% done
+progress: 50% done
+progress: 60% done
+progress: 70% done
+progress: 80% done
+progress: 90% done
+progress: 100% done
+
+finished in 2.32s, 431.37 req/s, 510.57KB/s
+requests: 1000 total, 1000 started, 1000 done, 1000 succeeded, 0 failed, 0 errored, 0 timeout
+status codes: 1000 2xx, 0 3xx, 0 4xx, 0 5xx
+traffic: 1.16MB (1212000) total, 145.51KB (149000) headers (space savings 0.00%), 1000.00KB (1024000) data
+                 min         max         median      p95         p99         mean        sd         +/- sd
+request     :      524us       1.43s      5.40ms      9.22ms       1.03s     24.48ms    145.41ms    98.20%
+connect     :       22us        58us        27us        58us        58us        33us        10us    80.00%
+TTFB        :      743us      7.01ms      2.98ms      7.01ms      7.01ms      2.97ms      1.74ms    70.00%
+req/s       :      21.57      179.65       36.39      179.65      179.65       81.70       72.04    65.00%
+scope=single WSL2 ARM64 diagnostic; Relay ran through qemu-aarch64 user emulation; not physical-host release evidence

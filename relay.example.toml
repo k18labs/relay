@@ -1,0 +1,16 @@
+# Local development example. Set server.tls = true and provide the TLS files
+# shown in docs/CONFIGURATION.md before exposing Relay beyond loopback.
+[server]
+listen = "127.0.0.1:8080"
+max_connections = 512
+tls = false
+
+[[routes]]
+host = "example.org"
+path = "/"
+upstream = "http://127.0.0.1:3000"
+
+[[routes]]
+host = "example.org"
+path = "/api"
+upstream = "http://127.0.0.1:3001"

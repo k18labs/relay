@@ -1,0 +1,23 @@
+# Relay design
+
+## Request path
+
+Client TCP connection → bounded connection admission → optional TLS 1.3 termination → Hyper HTTP/1 parsing → validation and policy → configured host/path route → HTTP or verified HTTPS upstream → streamed response.
+
+## Current design
+
+Configuration is parsed, validated, and TLS material loaded before listener binding. The immutable config is shared across connection tasks. Semaphores bound connections, concurrent requests, and TLS handshakes. Hyper owns HTTP parsing/framing and the legacy client provides upstream pooling. `hyper-rustls` and rustls provide upstream TLS with chain and hostname checks. TLS uses TLS 1.3 and early data is disabled.
+
+Bodies stream through byte limits. Header sizes/counts, connection establishment, response start, body progress, idle keep-alive header reads, upstream pool idle time, and shutdown are time-bounded. Route selection uses one Host value, normalized host matching, and the longest segment-boundary path prefix. Unknown hosts receive 421; upstream failures receive 502. `CONNECT` and upgrades receive 501.
+
+Hop-by-hop fields and values named by `Connection` are stripped. Untrusted forwarding fields are removed; Relay does not currently create replacement client identity headers. Logs avoid request details and secrets.
+
+## Trust boundaries
+
+- Client bytes are untrusted and parsed by Hyper.
+- Configuration and TLS files are operator-controlled, then validated before the listener starts.
+- Upstream origins are fixed in configuration; requests cannot select an origin.
+- Upstream responses are untrusted and pass through Hyper's HTTP implementation and configured body bounds.
+- Operational logs exclude request headers, bodies, credentials, and cookies.
+
+Fuzzing, Linux x86-64/ARM64 validation, load measurements, independent review, and release artifact verification are not complete. See `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md`, and `docs/adr/0001-hyper-tokio.md`.

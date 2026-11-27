@@ -434,14 +434,14 @@ async fn limits_concurrent_http2_streams_on_a_single_connection() {
     }
     assert_eq!(successful_requests, 1);
 
-    let mut sender = sender.clone();
+    let mut next_sender = sender.clone();
     let next_request = tokio::spawn(async move {
         let request = Request::builder()
             .uri("https://example.org/after-capacity")
             .header(header::HOST, "example.org")
             .body(Full::new(Bytes::new()))
             .unwrap();
-        let response = sender.send_request(request).await.unwrap();
+        let response = next_sender.send_request(request).await.unwrap();
         assert_eq!(response.status(), http::StatusCode::OK);
         assert_eq!(
             response.into_body().collect().await.unwrap().to_bytes(),

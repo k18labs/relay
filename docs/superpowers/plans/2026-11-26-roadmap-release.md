@@ -68,7 +68,7 @@
 - [ ] Build Linux x86-64 and ARM64 artifacts only for authorized protected version tags. Workflow exists but has not run on a protected tag.
 - [x] Add SPDX SBOM, SHA-256 checksum, and GitHub build provenance generation to the draft release workflow.
 - [ ] Verify generated artifact checksums and attestations from a clean environment; no release artifacts exist yet.
-- [ ] Enable and verify tag/branch protections and least-privilege GitHub permissions; draft workflow uses scoped permissions but remote rulesets remain to be added.
+- [x] Enable active `main` and `v*` tag rulesets; `main` requires one approval, status checks, and resolved review threads, while version tags require the repository admin to create/update/delete. Release jobs use scoped permissions.
 
 ### Task 6: Reproducibility and RC Decision
 

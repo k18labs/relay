@@ -12,7 +12,7 @@
 - Added bounded fuzz targets, a Relay/NGINX benchmark smoke harness, draft release automation, and an evidence-based release checklist.
 - Added a bounded HTTP/1 server-path fuzz target with malformed-request seeds and scheduled fuzz CI coverage.
 - Added log-redaction integration coverage for successful requests and malformed-client/upstream failures, checking sentinel values across headers, query strings, cookies, credentials, and bodies.
-- Added a gated HTTP/2 integration stress test that verifies the per-connection stream limit under concurrent requests.
+- Added gated HTTP/2 and HTTP/3 integration stress tests for per-connection stream limits under concurrent requests.
 - Added a Linux systemd deployment example, a tested-protocol support matrix, and weekly grouped Dependabot updates for Cargo dependencies and GitHub Actions.
 - Added a release artifact verifier for checksums, Cosign identity/issuer, GitHub provenance, and SPDX JSON structure, with tamper-rejection checks.
 - Updated project documentation to describe the current Rust implementation and remaining release work.

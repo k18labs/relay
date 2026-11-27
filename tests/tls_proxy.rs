@@ -390,12 +390,23 @@ async fn limits_concurrent_http2_streams_on_a_single_connection() {
                     .header(header::HOST, "example.org")
                     .body(Full::new(Bytes::new()))
                     .unwrap();
-                let response = sender.send_request(request).await.unwrap();
-                assert_eq!(response.status(), http::StatusCode::OK);
-                assert_eq!(
-                    response.into_body().collect().await.unwrap().to_bytes(),
-                    &b"ok"[..]
-                );
+                match sender.send_request(request).await {
+                    Ok(response) => {
+                        assert_eq!(response.status(), http::StatusCode::OK);
+                        assert_eq!(
+                            response.into_body().collect().await.unwrap().to_bytes(),
+                            &b"ok"[..]
+                        );
+                        true
+                    }
+                    Err(error) => {
+                        assert!(
+                            format!("{error:?}").contains("REFUSED_STREAM"),
+                            "unexpected HTTP/2 stream error: {error:?}"
+                        );
+                        false
+                    }
+                }
             })
         })
         .collect::<Vec<_>>();
@@ -412,17 +423,40 @@ async fn limits_concurrent_http2_streams_on_a_single_connection() {
     );
 
     gates.add_permits(1);
+    let mut successful_requests = 0;
+    for request in requests {
+        successful_requests += usize::from(
+            tokio::time::timeout(Duration::from_secs(3), request)
+                .await
+                .expect("HTTP/2 request timed out")
+                .unwrap(),
+        );
+    }
+    assert_eq!(successful_requests, 1);
+
+    let mut sender = sender.clone();
+    let next_request = tokio::spawn(async move {
+        let request = Request::builder()
+            .uri("https://example.org/after-capacity")
+            .header(header::HOST, "example.org")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+        let response = sender.send_request(request).await.unwrap();
+        assert_eq!(response.status(), http::StatusCode::OK);
+        assert_eq!(
+            response.into_body().collect().await.unwrap().to_bytes(),
+            &b"ok"[..]
+        );
+    });
     tokio::time::timeout(Duration::from_secs(3), started_rx.recv())
         .await
-        .expect("next upstream request did not start after capacity was released")
+        .expect("request did not start after stream capacity was available")
         .expect("upstream task stopped");
-    gates.add_permits(7);
-    for request in requests {
-        tokio::time::timeout(Duration::from_secs(3), request)
-            .await
-            .expect("HTTP/2 request timed out")
-            .unwrap();
-    }
+    gates.add_permits(1);
+    tokio::time::timeout(Duration::from_secs(3), next_request)
+        .await
+        .expect("request after stream capacity was available timed out")
+        .unwrap();
 
     drop(sender);
     connection_task.abort();

@@ -590,36 +590,53 @@ async fn handle_http3_request<S, B>(
         Err(never) => match never {},
     };
     let (parts, mut body) = response.into_parts();
-    if !matches!(
-        tokio::time::timeout(
-            write_timeout,
-            stream.send_response(Response::from_parts(parts, ()))
-        )
-        .await,
-        Ok(Ok(()))
-    ) {
-        return;
+    match tokio::time::timeout(
+        write_timeout,
+        stream.send_response(Response::from_parts(parts, ())),
+    )
+    .await
+    {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            tracing::debug!(error = %error, "HTTP/3 response headers failed");
+            return;
+        }
+        Err(_) => {
+            tracing::debug!("HTTP/3 response headers timed out");
+            return;
+        }
     }
     while let Some(frame) = body.frame().await {
         match frame {
             Ok(frame) => match frame.into_data() {
                 Ok(data) => {
-                    if !matches!(
-                        tokio::time::timeout(write_timeout, stream.send_data(data)).await,
-                        Ok(Ok(()))
-                    ) {
-                        return;
+                    match tokio::time::timeout(write_timeout, stream.send_data(data)).await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(error)) => {
+                            tracing::debug!(error = %error, "HTTP/3 response data failed");
+                            return;
+                        }
+                        Err(_) => {
+                            tracing::debug!("HTTP/3 response data timed out");
+                            return;
+                        }
                     }
                 }
                 Err(frame) => {
-                    if let Ok(trailers) = frame.into_trailers()
-                        && !matches!(
-                            tokio::time::timeout(write_timeout, stream.send_trailers(trailers))
-                                .await,
-                            Ok(Ok(()))
-                        )
-                    {
-                        return;
+                    if let Ok(trailers) = frame.into_trailers() {
+                        match tokio::time::timeout(write_timeout, stream.send_trailers(trailers))
+                            .await
+                        {
+                            Ok(Ok(())) => {}
+                            Ok(Err(error)) => {
+                                tracing::debug!(error = %error, "HTTP/3 response trailers failed");
+                                return;
+                            }
+                            Err(_) => {
+                                tracing::debug!("HTTP/3 response trailers timed out");
+                                return;
+                            }
+                        }
                     }
                 }
             },

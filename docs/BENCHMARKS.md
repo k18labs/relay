@@ -23,7 +23,7 @@ For Relay, the per-run aggregate rates were 1,135.1, 1,138.1, and 1,133.8 req/s 
 
 ## HTTP/3 status
 
-HTTP/3 was excluded from the throughput matrix. Relay's in-process HTTP/3 integration test passes for forwarding, streaming request bodies, body-size rejection, and UDP bind conflicts. During an external curl 8.21.0 smoke probe with a 1 KiB upstream response, curl received the response headers and payload but then reported `HTTP/3 stream 0 reset by server (error 0x0 unknown)`. Treat external HTTP/3 response termination as an open interoperability issue; do not make an HTTP/3 performance or release-readiness claim until this is resolved and retested with an external client. Apache's installed build did not provide an HTTP/3 module.
+HTTP/3 was excluded from the throughput matrix. Relay's in-process HTTP/3 integration test passes for forwarding, streaming request bodies, body-size rejection, and UDP bind conflicts. During an external curl 8.21.0 smoke probe with a 1 KiB upstream response, curl received the response headers and full payload but then reported `HTTP/3 stream 0 reset by server (error 0x0 unknown)`. A separate `h2load --h3` attempt started and completed zero requests, so it produced no valid throughput result. The benchmark script therefore defaults to HTTP/1.1 and HTTP/2; opting into HTTP/3 fails closed if the client reports no successful requests. Treat external HTTP/3 response termination as an open interoperability issue; do not make an HTTP/3 performance or release-readiness claim until this is resolved and retested with an external client. Apache's installed build did not provide an HTTP/3 module.
 
 ## Limitations
 

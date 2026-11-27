@@ -9,7 +9,7 @@ REPETITIONS="${REPETITIONS:-3}"
 THREADS="${THREADS:-4}"
 CLIENTS="${CLIENTS:-50}"
 STREAMS="${STREAMS:-10}"
-PROTOCOLS="${PROTOCOLS:-h1 h2 h3}"
+PROTOCOLS="${PROTOCOLS:-h1 h2}"
 RESULTS="${RESULTS:-$ROOT/competitor-benchmark.txt}"
 
 [[ "$DURATION" =~ ^([1-9]|[1-5][0-9]|60)s$ ]]
@@ -188,11 +188,19 @@ wait_http1() {
 for port in 18443 18444 18445 18446; do wait_http1 "$port"; done
 
 check_protocol() {
-  local server="$1" mode="$2" port="$3" actual expected
+  local server="$1" mode="$2" port="$3" actual expected output curl_status
   case "$mode" in
     h1) actual="$(curl --silent --show-error --insecure --http1.1 --output /dev/null --write-out '%{http_version}' "https://localhost:$port/bench")"; expected=1.1 ;;
     h2) actual="$(curl --silent --show-error --insecure --http2 --output /dev/null --write-out '%{http_version}' "https://localhost:$port/bench")"; expected=2 ;;
-    h3) actual="$(curl --silent --show-error --insecure --http3-only --output /dev/null --write-out '%{http_version}' "https://localhost:$port/bench")"; expected=3 ;;
+    h3)
+      if output="$(curl --silent --show-error --insecure --http3-only --output /dev/null --write-out '%{http_version}:%{size_download}' "https://localhost:$port/bench")"; then curl_status=0; else curl_status=$?; fi
+      actual="${output%%:*}"
+      if [[ "$actual" == 3 && "$output" == *:1024 && "$curl_status" == 18 ]]; then
+        printf 'protocol_check server=%s mode=h3 version=3 payload_bytes=1024 warning=curl_stream_reset_after_full_payload exit=%s\n' "$server" "$curl_status" | tee -a "$RESULTS"
+        return 0
+      fi
+      expected=3
+      ;;
   esac
   if [[ "$actual" != "$expected" ]]; then
     printf 'protocol_check server=%s mode=%s expected=%s observed=%s\n' "$server" "$mode" "$expected" "$actual" | tee -a "$RESULTS"
@@ -214,10 +222,15 @@ benchmark_mode() {
       echo "h2load -D $DURATION --warm-up-time $WARM_UP -c $connections -t $THREADS -m $streams"
     } | tee -a "$RESULTS"
     case "$mode" in
-      h1) h2load --h1 -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" ;;
-      h2) h2load --alpn-list=h2 -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" ;;
-      h3) h2load --h3 -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" ;;
-    esac >>"$RESULTS" 2>&1
+      h1) h2load --h1 -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" >"$TMP/h2load.out" 2>&1 ;;
+      h2) h2load --alpn-list=h2 -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" >"$TMP/h2load.out" 2>&1 ;;
+      h3) h2load --h3 --connect-to="127.0.0.1:$port" -D "$DURATION" --warm-up-time "$WARM_UP" -c "$connections" -t "$THREADS" -m "$streams" "https://localhost:$port/bench" >"$TMP/h2load.out" 2>&1 ;;
+    esac || { cat "$TMP/h2load.out" | tee -a "$RESULTS"; return 1; }
+    cat "$TMP/h2load.out" >>"$RESULTS"
+    if ! grep -Eq 'requests: [0-9]+ total, [0-9]+ started, [0-9]+ done, [1-9][0-9]* succeeded, 0 failed, 0 errored, 0 timeout' "$TMP/h2load.out"; then
+      echo "benchmark_error server=$server protocol=$mode repetition=$repetition reason=no_successful_requests_or_client_errors" | tee -a "$RESULTS" >&2
+      return 1
+    fi
   done
 }
 

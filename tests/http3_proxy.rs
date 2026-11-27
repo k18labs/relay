@@ -33,11 +33,17 @@ async fn start_http_upstream() -> (std::net::SocketAddr, tokio::task::JoinHandle
                 if read_complete_request(&mut stream).await.is_err() {
                     return;
                 }
-                let _ = stream
-                    .write_all(
-                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
-                    )
-                    .await;
+                let response_body = if index == 0 {
+                    vec![b'x'; 1024]
+                } else {
+                    b"ok".to_vec()
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    response_body.len()
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.write_all(&response_body).await;
             } else {
                 let mut request = Vec::new();
                 let _ =
@@ -93,7 +99,7 @@ async fn serves_http3_and_forwards_to_the_configured_upstream() {
         .replace('\\', "/");
     let ca_file = fixture("test-ca.pem");
     let config_text = format!(
-        "[server]\nlisten = \"127.0.0.1:0\"\nmax_connections = 8\n\n[limits]\nmax_body_bytes = 4\n\n[tls]\ncertificate = \"{certificate}\"\nprivate_key = \"{private_key}\"\n\n[[routes]]\nhost = \"example.org\"\npath = \"/\"\nupstream = \"http://{upstream}\"\n"
+        "[server]\nlisten = \"127.0.0.1:0\"\nmax_connections = 8\n\n[limits]\nmax_body_bytes = 1024\n\n[tls]\ncertificate = \"{certificate}\"\nprivate_key = \"{private_key}\"\n\n[[routes]]\nhost = \"example.org\"\npath = \"/\"\nupstream = \"http://{upstream}\"\n"
     );
     let config = Arc::new(Config::parse(&config_text).unwrap());
     let server_tls = tls::load_server_config(&config.tls).unwrap();
@@ -151,7 +157,7 @@ async fn serves_http3_and_forwards_to_the_configured_upstream() {
             chunk.advance(count);
         }
     }
-    assert_eq!(body, b"ok");
+    assert_eq!(body, vec![b'x'; 1024]);
 
     let request = Request::post("https://example.org/upload")
         .body(())
@@ -168,7 +174,7 @@ async fn serves_http3_and_forwards_to_the_configured_upstream() {
         .unwrap();
     let mut stream = sender.send_request(request).await.unwrap();
     stream
-        .send_data(Bytes::from_static(b"abcde"))
+        .send_data(Bytes::from(vec![b'a'; 1025]))
         .await
         .unwrap();
     stream.finish().await.unwrap();

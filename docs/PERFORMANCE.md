@@ -62,6 +62,19 @@ After adding a configurable Tokio worker count (default 2, allowed range 1–64)
 
 These are single local WSL2 smoke runs, not physical-host release measurements. The observed 4.84 ms p99 difference exceeds the provisional 1 ms target, and the startup observations exceed the provisional 50 ms target; those targets are not met by this evidence. The two-worker default reduces observed idle RSS below the provisional 10 MiB target on this host, while the TLS idle sample is close to that threshold. Confirm all resource figures on supported physical hosts before making a release claim.
 
+## PR commit `71810ea` CI benchmark rerun
+
+The PR commit `71810ea` reran the three-repeat normal-load, connection-cap, shutdown-under-load, and TLS 1.3 profiles on four-vCPU GitHub-hosted Linux VMs. Raw outputs are preserved for [x86-64 normal](perf-results/2026-11-27-github-actions-71810ea-x86_64-normal.txt), [x86-64 cap](perf-results/2026-11-27-github-actions-71810ea-x86_64-connection-cap.txt), [x86-64 shutdown](perf-results/2026-11-27-github-actions-71810ea-x86_64-shutdown.txt), [x86-64 TLS](perf-results/2026-11-27-github-actions-71810ea-x86_64-tls.txt), [ARM64 normal](perf-results/2026-11-27-github-actions-71810ea-aarch64-normal.txt), [ARM64 cap](perf-results/2026-11-27-github-actions-71810ea-aarch64-connection-cap.txt), [ARM64 shutdown](perf-results/2026-11-27-github-actions-71810ea-aarch64-shutdown.txt), and [ARM64 TLS](perf-results/2026-11-27-github-actions-71810ea-aarch64-tls.txt).
+
+| Architecture | CPU | Binary bytes | Median startup | Median idle RSS | Median Relay throughput at 50 clients | Median p99 at 50 clients | Median p99 at 256 clients |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| x86-64 | AMD EPYC 7763 | 7,835,752 | 81 ms | 7,004 KiB | 1,157.34 req/s | 43.00 ms | 1,090 ms |
+| ARM64 | Neoverse-N2 | 6,374,712 | 54 ms | 5,320 KiB | 1,157.87 req/s | 42.98 ms | 568.82 ms |
+
+The capped runs had median Relay throughput of 3,139.11 req/s on x86-64 and 3,633.80 req/s on ARM64. Mean sampled Relay CPU and peak sampled RSS were 16.06% / 9,700 KiB (x86-64) and 14.08% / 8,100 KiB (ARM64) at 50 clients; at 256 clients they were 42.51% / 23,400 KiB and 39.90% / 21,504 KiB. Both shutdown-under-load checks passed. The TLS 1.3 harness recorded three successful 15-second runs per architecture; median connections per 16-second measurement window were 9,329 on x86-64 and 7,583 on ARM64. Startup to the first handshake was 63 ms / 60 ms, with TLS idle RSS of 8,232 KiB / 6,716 KiB.
+
+The x86-64 binary remains above the provisional 5 MB target and startup remains above 50 ms. NGINX reported client read errors in the configured-cap runs. These hosted VMs are not physical-host evidence and the results do not support a performance-superiority claim.
+
 ## Repeatable local smoke comparison
 
 On Linux with `nginx`, `wrk`, Python 3, and a release build of Relay installed, run:

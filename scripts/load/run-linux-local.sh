@@ -59,6 +59,9 @@ tls = false
 host = "example.org"
 path = "/"
 upstream = "http://127.0.0.1:18081"
+
+[limits]
+max_concurrent_requests = 1024
 EOF
 
 cat >"$tmp/nginx.conf" <<EOF
@@ -116,6 +119,7 @@ if [[ -z "$rustc_bin" ]] && command -v rustup >/dev/null; then
 fi
 echo "rustc=$([[ -z "$rustc_bin" ]] && echo unavailable || "$rustc_bin" --version)"
 echo "duration=$duration threads=$threads concurrency=$concurrency"
+echo "relay_limits=max_connections=256 max_concurrent_requests=1024"
 echo "upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only"
 echo "Upstream sanity run:"
 wrk -t "$threads" -c "$concurrency" -d "$duration" --latency -H 'Host: example.org' http://127.0.0.1:18081/bench.txt

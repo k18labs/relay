@@ -20,30 +20,15 @@ Do not publish a Relay release until every required gate below has evidence atta
 
 ## Draft artifact verification
 
-The tag workflow is intentionally a draft-release producer. On a clean Linux environment with `gh`, Cosign, and the GitHub CLI attestation extension available:
+The tag workflow is intentionally a draft-release producer. In a clean Linux environment, check out the source tag and install `gh`, Cosign, Python 3, and `sha256sum`:
 
 ```sh
-gh release download vX.Y.Z-rc.N --repo k18labs/relay --dir release-check
-cd release-check
 TAG=vX.Y.Z-rc.N
-SIGNING_IDENTITY="https://github.com/k18labs/relay/.github/workflows/release.yml@refs/tags/$TAG"
-sha256sum --check relay-linux-x86_64.sha256
-sha256sum --check relay-linux-aarch64.sha256
-for asset in relay-linux-x86_64 relay-linux-aarch64; do
-  cosign verify-blob "$asset" --bundle "$asset.sigstore.json" \
-    --certificate-identity "$SIGNING_IDENTITY" \
-    --certificate-oidc-issuer https://token.actions.githubusercontent.com
-done
-for manifest in relay-linux-x86_64.sha256 relay-linux-aarch64.sha256 relay-sbom.spdx.json; do
-  cosign verify-blob "$manifest" --bundle "$manifest.sigstore.json" \
-    --certificate-identity "$SIGNING_IDENTITY" \
-    --certificate-oidc-issuer https://token.actions.githubusercontent.com
-done
-gh attestation verify relay-linux-x86_64 --repo k18labs/relay
-gh attestation verify relay-linux-aarch64 --repo k18labs/relay
+gh release download "$TAG" --repo k18labs/relay --dir release-check
+./scripts/release/verify-artifacts.sh "$TAG" release-check 2>&1 | tee "release-check/verification-$TAG.txt"
 ```
 
-Confirm the SPDX JSON file is present and parses with an SPDX-compatible validator. Save the verification output with the release review. A draft release and successful workflow are not themselves approval to publish.
+The verifier checks binary checksums, Cosign identity and issuer for binaries/manifests/SBOM, GitHub provenance for both binaries, and required SPDX JSON fields. Its local tamper-rejection checks can be run with `bash scripts/release/test-verify-artifacts.sh`; these mock the external signing and attestation tools and do not replace a real verification. Save the clean-environment output with the release review. A draft release and successful workflow are not themselves approval to publish.
 
 ## Competitor benchmark evidence
 

@@ -24,6 +24,8 @@ jobs:
         run: cargo clippy --all-targets --locked -- -D warnings
       - name: Tests
         run: cargo test --locked
+      - name: Release verifier tamper checks
+        run: bash scripts/release/test-verify-artifacts.sh
       - name: Release build
         run: cargo build --locked --release
       - name: Verify clean repeat build

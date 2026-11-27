@@ -1,0 +1,457 @@
+===== connection-cap repetition 1 of 3 =====
+host=Linux runnervmnfvap 7.0.0-1017-azure #17~24.04.1-Ubuntu SMP PREEMPT Thu Sep 24 19:06:39 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+cpu=Neoverse-N2
+logical_cpus=4
+memory_kib=16324144
+relay=relay 0.1.0 (aarch64)
+relay_binary_bytes=4659520
+relay_startup_to_http_ready_ms=61
+relay_idle_rss_kib=4312
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=256
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    80.30ms   79.46ms   1.82s    98.74%
+    Req/Sec     0.86k    58.87     1.08k    81.17%
+  Latency Distribution
+     50%   70.04ms
+     75%   85.01ms
+     90%  102.02ms
+     99%  227.15ms
+  103233 requests in 30.01s, 119.35MB read
+Requests/sec:   3439.86
+Transfer/sec:      3.98MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   169.16ms  249.67ms   1.52s    85.92%
+    Req/Sec   789.21     81.45     1.04k    73.98%
+  Latency Distribution
+     50%   59.95ms
+     75%   81.06ms
+     90%  598.77ms
+     99%    1.04s 
+  94277 requests in 30.03s, 108.99MB read
+Requests/sec:   3139.15
+Transfer/sec:      3.63MB
+Relay CPU and RSS samples from pidstat:
+Linux 7.0.0-1017-azure (runnervmnfvap) 	11/27/26 	_aarch64_	(4 CPU)
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:08     1001    160034   17.00   22.00    0.00    0.00   39.00     3   1960.00      0.00  144076   11808   0.07  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:09     1001    160034   17.00   28.00    0.00    0.00   45.00     0   1108.00      0.00  144612   16160   0.10  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:10     1001    160034   17.00   26.00    0.00    0.00   43.00     0    237.00      0.00  144612   17312   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:11     1001    160034   17.00   27.00    0.00    0.00   44.00     0    102.00      0.00  144612   17568   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:12     1001    160034   17.00   26.00    0.00    0.00   43.00     0     53.00      0.00  144612   17824   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:13     1001    160034   17.00   26.00    0.00    0.00   43.00     0     55.00      0.00  144612   17952   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:14     1001    160034   16.00   27.00    0.00    0.00   43.00     0     43.00      0.00  144612   18336   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:15     1001    160034   19.00   24.00    0.00    0.00   43.00     0     26.00      0.00  144612   18336   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:16     1001    160034   18.00   25.00    0.00    0.00   43.00     0     52.00      0.00  144612   18464   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:17     1001    160034   19.00   24.00    0.00    0.00   43.00     0     32.00      0.00  144612   18720   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:18     1001    160034   18.00   25.00    0.00    0.00   43.00     0     14.00      0.00  144612   18720   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:19     1001    160034   18.00   25.00    0.00    0.00   43.00     0     16.00      0.00  144612   18720   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:20     1001    160034   19.00   24.00    0.00    0.00   43.00     0     22.00      0.00  144612   18720   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:21     1001    160034   17.00   27.00    0.00    0.00   44.00     0     23.00      0.00  144612   18848   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:22     1001    160034   16.00   26.00    0.00    0.00   42.00     0      9.00      0.00  144612   18848   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:23     1001    160034   20.00   25.00    0.00    0.00   45.00     0     35.00      0.00  144612   19104   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:24     1001    160034   19.00   24.00    0.00    0.00   43.00     0     12.00      0.00  144612   19104   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:25     1001    160034   16.00   26.00    0.00    0.00   42.00     0     15.00      0.00  144612   19104   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:26     1001    160034   17.00   26.00    0.00    0.00   43.00     0     13.00      0.00  144612   19104   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:27     1001    160034   18.00   26.00    0.00    0.00   44.00     0     13.00      0.00  144612   19232   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:28     1001    160034   17.00   26.00    0.00    0.00   43.00     0     15.00      0.00  144612   19360   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:29     1001    160034   15.00   28.00    0.00    0.00   43.00     0     12.00      0.00  144612   19360   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:30     1001    160034   18.00   26.00    0.00    0.00   44.00     0     26.00      0.00  144612   19488   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:31     1001    160034   18.00   25.00    0.00    0.00   43.00     0     13.00      0.00  144612   19488   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:32     1001    160034   17.00   26.00    0.00    0.00   43.00     0      5.00      0.00  144612   19488   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:33     1001    160034   20.00   23.00    0.00    0.00   43.00     0      7.00      0.00  144612   19488   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:34     1001    160034   16.00   28.00    0.00    0.00   44.00     0     26.00      0.00  144612   19488   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:35     1001    160034   17.00   25.00    0.00    0.00   42.00     0     11.00      0.00  144612   19488   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:36     1001    160034   16.00   28.00    0.00    0.00   44.00     0     10.00      0.00  144612   19488   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:21:37     1001    160034   17.00   25.00    0.00    0.00   42.00     0      5.00      0.00  144612   19616   0.12  relay
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   164.42ms    6.55ms 242.90ms   85.09%
+    Req/Sec   388.50    128.00   646.00     71.48%
+  Latency Distribution
+     50%  164.35ms
+     75%  167.15ms
+     90%  169.87ms
+     99%  178.23ms
+  46412 requests in 30.02s, 54.40MB read
+  Socket errors: connect 0, read 274269, write 0, timeout 0
+Requests/sec:   1545.79
+Transfer/sec:      1.81MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.
+===== connection-cap repetition 2 of 3 =====
+host=Linux runnervmnfvap 7.0.0-1017-azure #17~24.04.1-Ubuntu SMP PREEMPT Thu Sep 24 19:06:39 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+cpu=Neoverse-N2
+logical_cpus=4
+memory_kib=16324144
+relay=relay 0.1.0 (aarch64)
+relay_binary_bytes=4659520
+relay_startup_to_http_ready_ms=60
+relay_idle_rss_kib=4300
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=256
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    77.39ms   75.28ms   1.83s    98.76%
+    Req/Sec     0.89k    58.94     1.10k    80.17%
+  Latency Distribution
+     50%   68.00ms
+     75%   81.98ms
+     90%   97.97ms
+     99%  199.82ms
+  106789 requests in 30.01s, 123.46MB read
+Requests/sec:   3558.51
+Transfer/sec:      4.11MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   167.71ms  245.16ms   1.33s    85.78%
+    Req/Sec   794.42     84.31     1.17k    79.82%
+  Latency Distribution
+     50%   59.25ms
+     75%   80.94ms
+     90%  592.32ms
+     99%    1.01s 
+  94891 requests in 30.03s, 109.70MB read
+Requests/sec:   3160.06
+Transfer/sec:      3.65MB
+Relay CPU and RSS samples from pidstat:
+Linux 7.0.0-1017-azure (runnervmnfvap) 	11/27/26 	_aarch64_	(4 CPU)
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:38     1001    209346   16.00   24.00    0.00    0.00   40.00     0   2273.00      0.00  144204   13076   0.08  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:39     1001    209346   16.00   28.00    0.00    0.00   44.00     1    737.00      0.00  144604   16148   0.10  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:40     1001    209346   14.00   28.00    0.00    0.00   42.00     1    198.00      0.00  144604   16916   0.10  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:41     1001    209346   14.00   28.00    0.00    0.00   42.00     1     73.00      0.00  144604   17044   0.10  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:42     1001    209346   20.00   24.00    0.00    0.00   44.00     1    120.00      0.00  144604   17684   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:43     1001    209346   18.00   26.00    0.00    0.00   44.00     1     93.00      0.00  144604   17940   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:44     1001    209346   20.00   23.00    0.00    0.00   43.00     1     36.00      0.00  144604   18068   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:45     1001    209346   17.00   26.00    0.00    0.00   43.00     1     40.00      0.00  144604   18324   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:46     1001    209346   16.00   28.00    0.00    0.00   44.00     1     27.00      0.00  144604   18452   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:47     1001    209346   19.00   24.00    0.00    0.00   43.00     1     22.00      0.00  144604   18452   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:48     1001    209346   17.00   26.00    0.00    0.00   43.00     1     26.00      0.00  144604   18452   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:49     1001    209346   16.00   26.00    0.00    0.00   42.00     1     18.00      0.00  144604   18452   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:50     1001    209346   16.00   27.00    0.00    0.00   43.00     1     20.00      0.00  144604   18708   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:51     1001    209346   18.00   25.00    0.00    0.00   43.00     1     14.00      0.00  144604   18836   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:52     1001    209346   16.00   27.00    0.00    0.00   43.00     1     19.00      0.00  144604   18836   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:53     1001    209346   16.00   26.00    0.00    0.00   42.00     1     12.00      0.00  144604   18836   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:54     1001    209346   15.00   29.00    0.00    0.00   44.00     1     16.00      0.00  144604   18964   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:55     1001    209346   17.00   26.00    0.00    0.00   43.00     1     40.00      0.00  144604   19092   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:56     1001    209346   20.00   24.00    0.00    0.00   44.00     1     15.00      0.00  144604   19092   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:57     1001    209346   20.00   23.00    0.00    0.00   43.00     1     12.00      0.00  144604   19092   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:58     1001    209346   18.00   26.00    0.00    0.00   44.00     1     10.00      0.00  144604   19092   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:22:59     1001    209346   18.00   26.00    0.00    0.00   44.00     1      9.00      0.00  144604   19220   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:23:00     1001    209346   16.00   27.00    0.00    0.00   43.00     1      6.00      0.00  144604   19220   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:23:01     1001    209346   19.00   24.00    0.00    0.00   43.00     1     14.00      0.00  144604   19220   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:23:02     1001    209346   20.00   25.00    0.00    0.00   45.00     1      4.00      0.00  144604   19220   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:23:03     1001    209346   18.00   24.00    0.00    0.00   42.00     1     40.00      0.00  144604   19476   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:23:04     1001    209346   15.00   29.00    0.00    0.00   44.00     1      6.00      0.00  144604   19476   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:23:05     1001    209346   18.00   27.00    0.00    0.00   45.00     1     28.00      0.00  144604   19476   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:23:06     1001    209346   18.00   25.00    0.00    0.00   43.00     1      4.00      0.00  144604   19476   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:23:07     1001    209346   16.00   28.00    0.00    0.00   44.00     1      4.00      0.00  144604   19604   0.12  relay
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   169.24ms   10.01ms 312.44ms   90.85%
+    Req/Sec   377.22    114.30   646.00     71.24%
+  Latency Distribution
+     50%  168.72ms
+     75%  171.95ms
+     90%  175.34ms
+     99%  209.92ms
+  45010 requests in 30.02s, 52.75MB read
+  Socket errors: connect 0, read 300938, write 0, timeout 0
+Requests/sec:   1499.11
+Transfer/sec:      1.76MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.
+===== connection-cap repetition 3 of 3 =====
+host=Linux runnervmnfvap 7.0.0-1017-azure #17~24.04.1-Ubuntu SMP PREEMPT Thu Sep 24 19:06:39 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+cpu=Neoverse-N2
+logical_cpus=4
+memory_kib=16324144
+relay=relay 0.1.0 (aarch64)
+relay_binary_bytes=4659520
+relay_startup_to_http_ready_ms=59
+relay_idle_rss_kib=4316
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=256
+relay_limits=max_connections=256 max_concurrent_requests=1024
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    76.36ms   69.86ms   1.73s    98.68%
+    Req/Sec     0.90k    66.24     1.09k    81.08%
+  Latency Distribution
+     50%   67.96ms
+     75%   81.00ms
+     90%   96.52ms
+     99%  182.53ms
+  107517 requests in 30.01s, 124.30MB read
+Requests/sec:   3582.78
+Transfer/sec:      4.14MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   133.82ms  212.49ms   2.00s    93.70%
+    Req/Sec   710.53     91.54     1.37k    91.08%
+  Latency Distribution
+     50%   79.89ms
+     75%  104.87ms
+     90%  153.78ms
+     99%    1.27s 
+  84848 requests in 30.03s, 98.09MB read
+  Socket errors: connect 0, read 0, write 0, timeout 15
+Requests/sec:   2825.81
+Transfer/sec:      3.27MB
+Relay CPU and RSS samples from pidstat:
+Linux 7.0.0-1017-azure (runnervmnfvap) 	11/27/26 	_aarch64_	(4 CPU)
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:08     1001    257268   13.00   24.00    0.00    0.00   37.00     2   2626.00      0.00  144472   14628   0.09  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:09     1001    257268   14.00   25.00    0.00    0.00   39.00     2    319.00      0.00  144604   15652   0.10  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:10     1001    257268   18.00   24.00    0.00    0.00   42.00     2    252.00      0.00  144604   16804   0.10  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:11     1001    257268   16.00   24.00    0.00    0.00   40.00     2     81.00      0.00  144604   17060   0.10  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:12     1001    257268   17.00   24.00    0.00    0.00   41.00     2    129.00      0.00  144604   17572   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:13     1001    257268   15.00   25.00    0.00    0.00   40.00     2     59.00      0.00  144604   17956   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:14     1001    257268   17.00   24.00    0.00    0.00   41.00     2     46.00      0.00  144604   18084   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:15     1001    257268   16.00   25.00    0.00    0.00   41.00     2     26.00      0.00  144604   18212   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:16     1001    257268   16.00   25.00    0.00    0.00   41.00     2     36.00      0.00  144604   18212   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:17     1001    257268   16.00   25.00    0.00    0.00   41.00     2     27.00      0.00  144604   18340   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:18     1001    257268   17.00   23.00    0.00    0.00   40.00     2     32.00      0.00  144604   18340   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:19     1001    257268   14.00   27.00    0.00    0.00   41.00     2     21.00      0.00  144604   18468   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:20     1001    257268   17.00   26.00    0.00    0.00   43.00     2     24.00      0.00  144604   18468   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:21     1001    257268   16.00   25.00    0.00    0.00   41.00     2     36.00      0.00  144604   18724   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:22     1001    257268   17.00   24.00    0.00    0.00   41.00     2     15.00      0.00  144604   18724   0.11  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:23     1001    257268   15.00   28.00    0.00    0.00   43.00     2     38.00      0.00  144604   19108   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:24     1001    257268   15.00   27.00    0.00    0.00   42.00     2     23.00      0.00  144604   19108   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:25     1001    257268   16.00   27.00    0.00    0.00   43.00     2     62.00      0.00  144604   19236   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:26     1001    257268   16.00   26.00    0.00    0.00   42.00     2     22.00      0.00  144604   19236   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:27     1001    257268   18.00   24.00    0.00    0.00   42.00     2     10.00      0.00  144604   19364   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:28     1001    257268   17.00   25.00    0.00    0.00   42.00     2      6.00      0.00  144604   19364   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:29     1001    257268   14.00   28.00    0.00    0.00   42.00     2      8.00      0.00  144604   19364   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:30     1001    257268   16.00   25.00    0.00    0.00   41.00     2      9.00      0.00  144604   19364   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:31     1001    257268   19.00   24.00    0.00    0.00   43.00     2     10.00      0.00  144604   19492   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:32     1001    257268   16.00   26.00    0.00    0.00   42.00     2     10.00      0.00  144604   19492   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:33     1001    257268   16.00   26.00    0.00    0.00   42.00     2     22.00      0.00  144604   19620   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:34     1001    257268   19.00   24.00    0.00    0.00   43.00     2     45.00      0.00  144604   19620   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:35     1001    257268   17.00   26.00    0.00    0.00   43.00     2     40.00      0.00  144604   19876   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:36     1001    257268   16.00   27.00    0.00    0.00   43.00     2     26.00      0.00  144604   19876   0.12  relay
+
+# Time        UID       PID    %usr %system  %guest   %wait    %CPU   CPU  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+06:24:37     1001    257268   16.00   26.00    0.00    0.00   42.00     2      5.00      0.00  144604   19876   0.12  relay
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   164.66ms   14.13ms 249.31ms   91.75%
+    Req/Sec   385.58     94.42   646.00     76.71%
+  Latency Distribution
+     50%  162.24ms
+     75%  165.06ms
+     90%  169.16ms
+     99%  228.82ms
+  46034 requests in 30.03s, 53.95MB read
+  Socket errors: connect 0, read 394022, write 0, timeout 0
+Requests/sec:   1533.07
+Transfer/sec:      1.80MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.

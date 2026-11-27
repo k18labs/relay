@@ -1,0 +1,19 @@
+Relay clean repeat-build evidence
+=================================
+
+Source commit: dbe014932a37d85dd950ce0d10e7ed543499785d
+Target: Linux ARM64 (aarch64-unknown-linux-gnu)
+Environment: Kali Linux ARM64 under WSL2, Oryon CPU, kernel 6.18.33.1-microsoft-standard-WSL2
+Toolchain: rustc 1.96.0 (ac68faa20 2026-05-25)
+
+Procedure:
+1. Build with `cargo build --locked --release`.
+2. Record SHA-256 of `target/release/relay`.
+3. Run `cargo clean --release`.
+4. Rebuild with `cargo build --locked --release` and compare SHA-256.
+
+First build SHA-256:  ad10b8db1ed43ad3cbb1abb564fda02ac305bcab7cc50fb4d96726b7acb9f0d7
+Second build SHA-256: ad10b8db1ed43ad3cbb1abb564fda02ac305bcab7cc50fb4d96726b7acb9f0d7
+Result: identical binary hashes.
+
+This is repeat-build evidence for one ARM64 WSL environment, not a clean independent builder. The CI workflow now checks two clean builds on each architecture; the release commit still needs those CI results and independent clean-environment verification.

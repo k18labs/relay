@@ -1,0 +1,54 @@
+host=Linux runnervmnfvap 7.0.0-1017-azure #17~24.04.1-Ubuntu SMP PREEMPT Thu Sep 24 19:06:39 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+cpu=Neoverse-N2
+logical_cpus=4
+memory_kib=16324184
+relay=relay 0.1.0 (aarch64)
+nginx=nginx version: nginx/1.24.0 (Ubuntu)
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=15s threads=4 concurrency=50
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 15s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    40.97ms    2.11ms  43.79ms   99.54%
+    Req/Sec   293.75     38.11   424.00     57.00%
+  Latency Distribution
+     50%   40.99ms
+     75%   41.01ms
+     90%   41.89ms
+     99%   42.02ms
+  17552 requests in 15.00s, 20.30MB read
+Requests/sec:   1169.84
+Transfer/sec:      1.35MB
+Relay reverse-proxy run:
+Running 15s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    41.46ms    1.23ms  80.94ms   95.19%
+    Req/Sec   290.13     24.83   363.00     69.50%
+  Latency Distribution
+     50%   41.07ms
+     75%   41.99ms
+     90%   42.05ms
+     99%   43.02ms
+  17340 requests in 15.01s, 20.05MB read
+Requests/sec:   1155.61
+Transfer/sec:      1.34MB
+NGINX reverse-proxy run:
+Running 15s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    25.82ms    0.94ms  30.95ms   78.35%
+    Req/Sec   466.36     14.49   490.00     74.00%
+  Latency Distribution
+     50%   25.79ms
+     75%   26.31ms
+     90%   26.84ms
+     99%   27.94ms
+  27875 requests in 15.01s, 32.67MB read
+Requests/sec:   1857.00
+Transfer/sec:      2.18MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.

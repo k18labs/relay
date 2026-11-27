@@ -26,3 +26,10 @@ jobs:
         run: cargo test --locked
       - name: Release build
         run: cargo build --locked --release
+      - name: Verify clean repeat build
+        run: |
+          sha256sum target/release/relay | tee "$RUNNER_TEMP/relay-first-build.sha256"
+          cargo clean --release
+          cargo build --locked --release
+          sha256sum target/release/relay | tee "$RUNNER_TEMP/relay-second-build.sha256"
+          cmp "$RUNNER_TEMP/relay-first-build.sha256" "$RUNNER_TEMP/relay-second-build.sha256"

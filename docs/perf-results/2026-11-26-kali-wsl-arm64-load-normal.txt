@@ -1,0 +1,165 @@
+===== repetition 1: 30s 4 threads 50 clients =====
+host=Linux SURFACE-LAPTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 00:46:21 UTC 2026 aarch64 GNU/Linux
+cpu=Oryon
+logical_cpus=12
+memory_kib=16117636
+relay=relay 0.1.0 (aarch64)
+nginx=nginx version: nginx/1.30.4
+wrk=wrk debian/4.1.0-4+b1 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.14.7
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=50
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    45.46ms    3.53ms 132.19ms   95.77%
+    Req/Sec   264.81     18.23   330.00     77.92%
+  Latency Distribution
+     50%   44.04ms
+     75%   47.91ms
+     90%   48.04ms
+     99%   52.06ms
+  31680 requests in 30.04s, 36.63MB read
+Requests/sec:   1054.77
+Transfer/sec:      1.22MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    50.13ms   13.71ms 175.54ms   89.66%
+    Req/Sec   242.11     43.01   323.00     82.34%
+  Latency Distribution
+     50%   47.83ms
+     75%   50.26ms
+     90%   60.53ms
+     99%  111.98ms
+  28902 requests in 30.10s, 33.41MB read
+Requests/sec:    960.25
+Transfer/sec:      1.11MB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    35.47ms    4.10ms  59.66ms   71.31%
+    Req/Sec   339.58     36.93   480.00     75.67%
+  Latency Distribution
+     50%   35.05ms
+     75%   37.84ms
+     90%   40.69ms
+     99%   46.77ms
+  40610 requests in 30.04s, 47.25MB read
+Requests/sec:   1351.88
+Transfer/sec:      1.57MB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.
+===== repetition 2: 30s 4 threads 50 clients =====
+host=Linux SURFACE-LAPTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 00:46:21 UTC 2026 aarch64 GNU/Linux
+cpu=Oryon
+logical_cpus=12
+memory_kib=16117636
+relay=relay 0.1.0 (aarch64)
+nginx=nginx version: nginx/1.30.4
+wrk=wrk debian/4.1.0-4+b1 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.14.7
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=50
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    46.29ms    6.10ms 203.96ms   94.36%
+    Req/Sec   260.46     21.93   340.00     86.22%
+  Latency Distribution
+     50%   44.13ms
+     75%   47.89ms
+     90%   51.27ms
+     99%   66.64ms
+  31180 requests in 30.10s, 36.05MB read
+Requests/sec:   1035.87
+Transfer/sec:      1.20MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    50.51ms   13.87ms 157.61ms   89.81%
+    Req/Sec   240.37     43.21   330.00     82.91%
+  Latency Distribution
+     50%   47.87ms
+     75%   51.65ms
+     90%   61.84ms
+     99%  111.99ms
+  28626 requests in 30.10s, 33.09MB read
+Requests/sec:    951.17
+Transfer/sec:      1.10MB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    74.69ms   62.82ms 515.96ms   94.41%
+    Req/Sec   189.20     74.57   363.00     74.15%
+  Latency Distribution
+     50%   62.28ms
+     75%   81.23ms
+     90%   96.17ms
+     99%  413.18ms
+  21961 requests in 30.09s, 25.55MB read
+Requests/sec:    729.89
+Transfer/sec:    869.60KB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.
+===== repetition 3: 30s 4 threads 50 clients =====
+host=Linux SURFACE-LAPTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 00:46:21 UTC 2026 aarch64 GNU/Linux
+cpu=Oryon
+logical_cpus=12
+memory_kib=16117636
+relay=relay 0.1.0 (aarch64)
+nginx=nginx version: nginx/1.30.4
+wrk=wrk debian/4.1.0-4+b1 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.14.7
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+duration=30s threads=4 concurrency=50
+upstream=Python ThreadingHTTPServer HTTP/1.1; fixed 1 KiB response; loopback only
+Upstream sanity run:
+Running 30s test @ http://127.0.0.1:18081/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    49.78ms    8.63ms 171.54ms   91.43%
+    Req/Sec   242.54     26.42   310.00     77.03%
+  Latency Distribution
+     50%   47.99ms
+     75%   50.32ms
+     90%   55.94ms
+     99%   86.89ms
+  28979 requests in 30.07s, 33.50MB read
+Requests/sec:    963.61
+Transfer/sec:      1.11MB
+Relay reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   154.00ms  192.67ms   1.69s    88.82%
+    Req/Sec   127.15     77.42   300.00     57.55%
+  Latency Distribution
+     50%   71.97ms
+     75%  172.34ms
+     90%  372.00ms
+     99%    1.01s
+  12929 requests in 30.17s, 14.94MB read
+Requests/sec:    428.53
+Transfer/sec:    507.21KB
+NGINX reverse-proxy run:
+Running 30s test @ http://127.0.0.1:18083/bench.txt
+  4 threads and 50 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   130.71ms   82.98ms 650.08ms   89.22%
+    Req/Sec   105.07     40.52   200.00     71.82%
+  Latency Distribution
+     50%  103.33ms
+     75%  128.34ms
+     90%  218.20ms
+     99%  500.15ms
+  11890 requests in 30.09s, 13.83MB read
+Requests/sec:    395.09
+Transfer/sec:    470.72KB
+Redirect stdout to preserve raw wrk output. This is a smoke run, not release performance evidence.

@@ -30,6 +30,10 @@ gh attestation verify relay-linux-aarch64 --repo k18labs/relay
 
 Confirm the SPDX JSON file is present and parses with an SPDX-compatible validator. Save the verification output with the release review. A draft release and successful workflow are not themselves approval to publish.
 
+## Latest PR evidence (not release approval)
+
+At PR commit `dbe014932a37d85dd950ce0d10e7ed543499785d`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, and optimized builds. Dependency audit, license policy, fuzz smoke, and one 15-second benchmark smoke on each architecture also passed. The local ARM64 repeat-build hashes match; the evidence is in [`release-evidence/2026-11-26-arm64-repeat-build.txt`](release-evidence/2026-11-26-arm64-repeat-build.txt). Repeated WSL load results are recorded, but had high variance and errors. These checks must be rerun for the final release commit; native load testing, clean-environment artifact verification, and independent review are still open.
+
 ## Current release status
 
 The project is still pre-release. The tagged workflow and draft checklist do not substitute for actual successful tagged runs, clean-environment verification, benchmark evidence, or an external review. Do not create or publish an RC tag while any required gate is open.

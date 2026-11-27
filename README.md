@@ -4,7 +4,7 @@ Relay is a small Rust HTTP/1.1 reverse proxy by k18 Labs. It routes only to conf
 
 ## Development status
 
-The current implementation supports inbound TLS 1.3, verified HTTPS upstreams, strict TOML configuration, host/path routing, streaming HTTP bodies, connection reuse, request and connection admission limits, header/body limits, timeouts, and bounded graceful shutdown. ARM64 Linux locked tests, formatting, Clippy, and three 1,000-iteration fuzz smoke runs passed locally. Linux x86-64 evidence for the current changes, sustained load and comparative performance results, external independent security review, and verified release artifacts remain incomplete. This is not a production release.
+The current implementation supports inbound TLS 1.3, verified HTTPS upstreams, strict TOML configuration, host/path routing, streaming HTTP bodies, connection reuse, request and connection admission limits, header/body limits, timeouts, and bounded graceful shutdown. Current-change Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, and optimized builds; three 1,000-iteration fuzz smoke runs also passed locally. Sustained load and comparative performance results, an external independent security review, and verified release artifacts remain incomplete. This is not a production release.
 
 ## Build and run
 

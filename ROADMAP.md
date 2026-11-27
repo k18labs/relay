@@ -4,7 +4,7 @@
 
 - [x] Rust crate, pinned toolchain, lockfile, strict config parser, and `run`/`check`/`version` CLI.
 - [x] CI and dependency/license policy files.
-- [ ] Linux x86-64 and ARM64 builds and CI evidence. ARM64 locked tests, formatting, and Clippy pass locally on 2026-11-26; x86-64 evidence for this change set is pending CI.
+- [x] Linux x86-64 and ARM64 builds and CI evidence for the current PR commit (`dbe0149`): both GitHub Actions jobs passed formatting, Clippy, locked tests, and optimized builds on 2026-11-26.
 
 ## M1 — HTTP proxy (implemented; broader validation remains)
 
@@ -13,14 +13,14 @@
 - [x] Local regression coverage for routing, forwarding, limits, timeouts, shutdown, and upstream reuse.
 - [x] Fuzz targets for config/routing, host normalization, and header policy; three Linux ARM64 smoke runs completed at 1,000 iterations each on 2026-11-26.
 - [x] Expanded raw framing/authority regressions, including malformed chunk payload, TE/CL canonicalization, duplicate Host, unsupported transfer codings, request-target forms, CONNECT, and Upgrade.
-- [ ] Sustained load testing and comparative performance results. A single 15-second WSL ARM64 smoke comparison is recorded, but it is not release evidence.
+- [ ] Sustained load testing and comparative performance results. One 15-second smoke comparison each on x86-64 and ARM64 GitHub runners is recorded alongside the WSL ARM64 run; none is release evidence.
 
 ## M2 — Secure transport (implemented; review remains)
 
 - [x] TLS 1.3 termination, PEM loading, and TLS configuration validation.
 - [x] HTTPS upstream with certificate-chain and hostname verification; no bypass or early data.
 - [x] Local transport security integration tests.
-- [ ] Linux platform verification and independent review. ARM64 unit/integration tests and lint pass locally; x86-64 current-change CI and an external independent review remain open.
+- [ ] Linux platform verification and independent review. Current-change CI passed on Linux x86-64 and ARM64; an external independent review remains open.
 
 ## M3 — Hardening (in progress)
 

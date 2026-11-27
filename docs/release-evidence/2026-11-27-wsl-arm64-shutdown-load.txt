@@ -1,0 +1,27 @@
+host=Linux SURFACE-LAPTOP 6.18.33.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Fri Jun  5 00:46:21 UTC 2026 aarch64 GNU/Linux
+cpu=Oryon
+logical_cpus=12
+memory_kib=16117636
+relay=relay 0.1.0 (aarch64)
+wrk=wrk debian/4.1.0-4+b1 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.14.7
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+relay_limits=max_connections=256 max_concurrent_requests=1024
+shutdown_load_duration=30s threads=4 concurrency=256
+Starting 4-thread, 256-client load for graceful-shutdown check (30s).
+graceful_shutdown_under_load=passed
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   160.11ms  155.76ms 637.91ms   78.61%
+    Req/Sec   436.72    191.57     0.95k    66.30%
+  Latency Distribution
+     50%   52.05ms
+     75%  270.05ms
+     90%  416.01ms
+     99%  561.57ms
+  4006 requests in 2.42s, 4.63MB read
+  Socket errors: connect 0, read 183, write 13234, timeout 0
+  Non-2xx or 3xx responses: 1
+Requests/sec:   1653.57
+Transfer/sec:      1.91MB

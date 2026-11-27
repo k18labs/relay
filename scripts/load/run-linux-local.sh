@@ -17,10 +17,14 @@ tmp=$(mktemp -d)
 relay_pid=
 nginx_pid=
 upstream_pid=
+load_pid=
+shutdown_watchdog=
 cleanup() {
   [[ -z "$relay_pid" ]] || kill "$relay_pid" 2>/dev/null || true
   [[ -z "$nginx_pid" ]] || kill "$nginx_pid" 2>/dev/null || true
   [[ -z "$upstream_pid" ]] || kill "$upstream_pid" 2>/dev/null || true
+  [[ -z "$load_pid" ]] || kill "$load_pid" 2>/dev/null || true
+  [[ -z "$shutdown_watchdog" ]] || kill "$shutdown_watchdog" 2>/dev/null || true
   wait 2>/dev/null || true
   if [[ "${KEEP_TMP:-0}" == 1 ]]; then
     echo "retained benchmark files: $tmp" >&2
@@ -105,6 +109,67 @@ wait_for upstream http://127.0.0.1:18081/bench.txt "$upstream_pid"
 wait_for relay http://127.0.0.1:18082/bench.txt "$relay_pid"
 wait_for nginx http://127.0.0.1:18083/bench.txt "$nginx_pid"
 
+rustc_bin=$(command -v rustc || true)
+if [[ -z "$rustc_bin" ]] && command -v rustup >/dev/null; then
+  rustc_bin=$(rustup which rustc --toolchain 1.96.0 2>/dev/null || true)
+fi
+
+if [[ "${SHUTDOWN_STRESS:-0}" == 1 ]]; then
+  load_duration=${SHUTDOWN_LOAD_DURATION:-30s}
+  echo "host=$(uname -a)"
+  echo "cpu=$(lscpu | awk -F: '/Model name/ {sub(/^ +/, "", $2); print $2; exit}')"
+  echo "logical_cpus=$(nproc)"
+  echo "memory_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
+  echo "relay=$($relay_bin version)"
+  echo "wrk=$(wrk -v 2>&1 | head -1)"
+  echo "python=$(python3 --version 2>&1)"
+  if [[ -z "$rustc_bin" ]]; then
+    echo "rustc=unavailable"
+  else
+    echo "rustc=$("$rustc_bin" --version)"
+  fi
+  echo "relay_limits=max_connections=256 max_concurrent_requests=1024"
+  echo "shutdown_load_duration=$load_duration threads=$threads concurrency=$concurrency"
+  echo "Starting $threads-thread, $concurrency-client load for graceful-shutdown check ($load_duration)."
+  wrk -t "$threads" -c "$concurrency" -d "$load_duration" --latency \
+    -H 'Host: example.org' http://127.0.0.1:18082/bench.txt \
+    >"$tmp/logs/shutdown-wrk.log" 2>&1 &
+  load_pid=$!
+  sleep 2
+  (
+    sleep 7
+    if kill -0 "$relay_pid" 2>/dev/null; then
+      : >"$tmp/shutdown-timeout"
+      kill -KILL "$relay_pid" 2>/dev/null || true
+    fi
+  ) &
+  shutdown_watchdog=$!
+  kill -TERM "$relay_pid"
+  set +e
+  wait "$relay_pid"
+  relay_status=$?
+  set -e
+  relay_pid=
+  kill "$shutdown_watchdog" 2>/dev/null || true
+  wait "$shutdown_watchdog" 2>/dev/null || true
+  if [[ -e "$tmp/shutdown-timeout" ]]; then
+    echo "Relay did not exit within 7 seconds during active load." >&2
+    cat "$tmp/logs/relay.log" >&2
+    exit 1
+  fi
+  if [[ "$relay_status" -ne 0 ]]; then
+    echo "Relay exited with status $relay_status during graceful shutdown." >&2
+    cat "$tmp/logs/relay.log" >&2
+    exit 1
+  fi
+  kill -INT "$load_pid" 2>/dev/null || true
+  wait "$load_pid" 2>/dev/null || true
+  load_pid=
+  echo "graceful_shutdown_under_load=passed"
+  cat "$tmp/logs/shutdown-wrk.log"
+  exit 0
+fi
+
 echo "host=$(uname -a)"
 echo "cpu=$(lscpu | awk -F: '/Model name/ {sub(/^ +/, "", $2); print $2; exit}')"
 echo "logical_cpus=$(nproc)"
@@ -113,10 +178,6 @@ echo "relay=$($relay_bin version)"
 echo "nginx=$($nginx_bin -v 2>&1)"
 echo "wrk=$(wrk -v 2>&1 | head -1)"
 echo "python=$(python3 --version 2>&1)"
-rustc_bin=$(command -v rustc || true)
-if [[ -z "$rustc_bin" ]] && command -v rustup >/dev/null; then
-  rustc_bin=$(rustup which rustc --toolchain 1.96.0 2>/dev/null || true)
-fi
 echo "rustc=$([[ -z "$rustc_bin" ]] && echo unavailable || "$rustc_bin" --version)"
 echo "duration=$duration threads=$threads concurrency=$concurrency"
 echo "relay_limits=max_connections=256 max_concurrent_requests=1024"

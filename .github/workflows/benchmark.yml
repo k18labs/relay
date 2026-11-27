@@ -82,6 +82,9 @@ jobs:
                 | tee -a "$output"
             done
           done
+          SHUTDOWN_STRESS=1 SHUTDOWN_LOAD_DURATION=30s DURATION=30s THREADS="$THREADS" \
+            CONCURRENCY=256 bash scripts/load/run-linux-local.sh \
+            target/release/relay /usr/sbin/nginx | tee "benchmark-${ARCH}-shutdown.txt"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: benchmark-${{ matrix.arch }}

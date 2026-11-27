@@ -39,5 +39,5 @@
 - [ ] Complete performance characterization on representative physical hosts, including binary size, memory, CPU, startup, TLS handshakes, and connection scaling. WSL2 smoke measurements now exist; they show startup and p99 overhead above provisional targets and do not satisfy this gate.
 - [ ] Complete native-host competitor benchmarks for HTTP/1.1, HTTP/2, and HTTP/3 where supported. Diagnostic WSL2 H1/H2 results and a three-repeat curl H3 comparison are recorded against Caddy, NGINX, and Apache (H3 unavailable in the installed Apache build). NGINX HTTP/2 was inconsistent. Representative physical-host runs remain open.
 - [ ] Run the protected-tag workflow and verify the SBOM, checksums, provenance attestations, and signed release artifacts from a clean environment. No tagged artifact has been verified.
-- [x] Add a release checklist and a tag workflow that validates, builds both Linux architectures, generates SPDX, checksums, and provenance, then creates a draft only.
+- [x] Add a release checklist and a tag workflow that validates, builds both Linux architectures, generates SPDX, checksums, GitHub provenance attestations, and Cosign keyless signatures, then creates a draft only.
 - [ ] Complete independent external security review and all release gates; only then consider v0.1 RC.

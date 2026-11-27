@@ -62,6 +62,12 @@ jobs:
           cp "target/${{ matrix.target }}/release/relay" "dist/${{ matrix.asset }}"
           cd dist
           sha256sum "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
+        with:
+          cosign-release: v3.1.5
+      - name: Sign release binary
+        run: cosign sign-blob --yes --bundle "dist/${{ matrix.asset }}.sigstore.json" "dist/${{ matrix.asset }}"
       - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-path: dist/${{ matrix.asset }}
@@ -83,6 +89,7 @@ jobs:
           path: .
           format: spdx-json
           artifact-name: relay-sbom.spdx.json
+          upload-release-assets: false
 
   draft-release:
     needs: [build, sbom]
@@ -90,20 +97,32 @@ jobs:
     permissions:
       actions: read
       contents: write
+      id-token: write
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist
-      - name: Verify checksums and create draft release
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
+        with:
+          cosign-release: v3.1.5
+      - name: Verify checksums and sign manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          find dist -name '*.sha256' -print0 | while IFS= read -r -d '' sums; do
+            (cd "$(dirname "$sums")" && sha256sum --check "$(basename "$sums")")
+          done
+          find dist -type f \( -name '*.sha256' -o -name '*.spdx.json' \) -print0 | while IFS= read -r -d '' manifest; do
+            cosign sign-blob --yes --bundle "${manifest}.sigstore.json" "$manifest"
+          done
+      - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          find dist -name '*.sha256' -print0 | while IFS= read -r -d '' sums; do
-            (cd "$(dirname "$sums")" && sha256sum --check "$(basename "$sums")")
-          done
           gh release create "$RELEASE_TAG" dist/*/* --draft --verify-tag \
             --title "Relay $RELEASE_TAG" \
-            --notes "Draft release candidate. Review CI, SBOM, checksums, and build provenance before publishing."
+            --notes "Draft release candidate. Review CI, SBOM, checksums, Cosign signatures, and build provenance before publishing."

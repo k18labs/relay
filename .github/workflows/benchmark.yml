@@ -1,6 +1,13 @@
 name: Benchmark smoke
 
 on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "src/**"
+      - "scripts/load/**"
+      - ".github/workflows/benchmark.yml"
   workflow_dispatch:
     inputs:
       duration:

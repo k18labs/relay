@@ -10,6 +10,10 @@
 - Hardened request-target, authority, transfer-coding, upstream connector/cancellation, downstream write-timeout, connection-pool, and graceful-shutdown handling.
 - Replaced the unmaintained `rustls-pemfile` dependency with the PEM API in `rustls-pki-types`.
 - Added bounded fuzz targets, a Relay/NGINX benchmark smoke harness, draft release automation, and an evidence-based release checklist.
+- Added a bounded HTTP/1 server-path fuzz target with malformed-request seeds and scheduled fuzz CI coverage.
+- Added log-redaction integration coverage for successful requests and malformed-client/upstream failures, checking sentinel values across headers, query strings, cookies, credentials, and bodies.
+- Added a Linux systemd deployment example, a tested-protocol support matrix, and weekly grouped Dependabot updates for Cargo dependencies and GitHub Actions.
+- Added a release artifact verifier for checksums, Cosign identity/issuer, GitHub provenance, and SPDX JSON structure, with tamper-rejection checks.
 - Updated project documentation to describe the current Rust implementation and remaining release work.
 
 ## 0.1.0-alpha.1

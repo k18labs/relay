@@ -35,11 +35,11 @@ Confirm the SPDX JSON file is present and parses with an SPDX-compatible validat
 
 ## Competitor benchmark evidence
 
-The available comparison data is virtualized WSL2 ARM64 output with a local Python upstream. It does not support a defensible performance ranking. Repeat competitor benchmarks on documented physical Linux hosts with stable results before making performance claims. Do not claim HTTP/3 release readiness until the external-client stream-reset report is resolved.
+The available comparison data is virtualized WSL2 ARM64 output with a local Python upstream. It does not support a defensible performance ranking. Repeat competitor benchmarks on documented physical Linux hosts with stable results before making performance claims. Relay's external HTTP/3 reset was resolved and confirmed with one curl smoke run; HTTP/3 throughput and physical-host performance evidence remain open.
 
 ## Latest PR evidence (not release approval)
 
-At PR commit `71810ea`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hashes; dependency audit and fuzz smoke also passed. The benchmark matrix completed three normal and three capped runs plus shutdown-under-load on each architecture; the corrected TLS harness recorded all three TLS 1.3 runs on both. A later local regression and external curl smoke resolved the H3 reset report; CI must rerun on the fix commit. Raw results are committed under `docs/perf-results/`. Clean-environment artifact verification, representative physical-host measurements, H3 throughput, and external independent review remain open.
+At PR commit `67ee7f0`, Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build checks; dependency audit and fuzz smoke also passed. The benchmark matrix completed three normal and three capped runs plus shutdown-under-load on each architecture; the corrected TLS harness recorded all three TLS 1.3 runs on both. The HTTP/3 early-response regression passes, and curl 8.21.0 negotiated H3 and received the full response; the raw smoke log is committed under `docs/perf-results/`. The competitor benchmark smoke workflow for this commit is still running. Clean-environment artifact verification, representative physical-host measurements, H3 throughput, external independent review, and maintainer approval remain open.
 
 ## Current release status
 

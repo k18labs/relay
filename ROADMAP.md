@@ -37,7 +37,7 @@
 
 - [x] Linux x86-64/ARM64 optimized builds and clean repeat-build hash checks passed in CI on PR commit `71810ea`.
 - [ ] Complete performance characterization on representative physical hosts, including binary size, memory, CPU, startup, TLS handshakes, and connection scaling. WSL2 smoke measurements now exist; they show startup and p99 overhead above provisional targets and do not satisfy this gate.
-- [ ] Complete native-host competitor benchmarks for HTTP/1.1, HTTP/2, and HTTP/3 where supported. The current Caddy/NGINX/Apache comparison is diagnostic WSL2 data; NGINX HTTP/2 was inconsistent and Relay HTTP/3 was excluded pending interoperability fixes.
+- [ ] Complete native-host competitor benchmarks for HTTP/1.1, HTTP/2, and HTTP/3 where supported. The current Caddy/NGINX/Apache comparison is diagnostic WSL2 data; NGINX HTTP/2 was inconsistent. Relay's external HTTP/3 reset is fixed and has one curl interoperability smoke run, but there is no valid HTTP/3 throughput measurement yet (`h2load --h3` reports zero successful requests).
 - [ ] Run the protected-tag workflow and verify the SBOM, checksums, provenance attestations, and signed release artifacts from a clean environment. No tagged artifact has been verified.
 - [x] Add a release checklist and a tag workflow that validates, builds both Linux architectures, generates SPDX, checksums, and provenance, then creates a draft only.
 - [ ] Complete independent external security review and all release gates; only then consider v0.1 RC.

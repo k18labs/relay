@@ -1,0 +1,29 @@
+host=Linux runnervmnfvap 7.0.0-1017-azure #17~24.04.1-Ubuntu SMP PREEMPT Thu Sep 24 19:06:39 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+cpu=Neoverse-N2
+logical_cpus=4
+memory_kib=16324148
+relay=relay 0.1.0 (aarch64)
+relay_binary_bytes=6375096
+relay_startup_to_http_ready_ms=56
+relay_idle_rss_kib=5396
+wrk=wrk debian/4.1.0-4build2 [epoll] Copyright (C) 2012 Will Glozer
+python=Python 3.12.3
+rustc=rustc 1.96.0 (ac68faa20 2026-05-25)
+relay_limits=max_connections=256 max_concurrent_requests=1024
+shutdown_load_duration=30s threads=4 concurrency=256
+Starting 4-thread, 256-client load for graceful-shutdown check (30s).
+graceful_shutdown_under_load=passed
+Running 30s test @ http://127.0.0.1:18082/bench.txt
+  4 threads and 256 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    93.25ms  142.29ms 961.16ms   91.23%
+    Req/Sec   820.77    285.07     1.18k    72.29%
+  Latency Distribution
+     50%   46.96ms
+     75%   55.06ms
+     90%  187.01ms
+     99%  785.67ms
+  6786 requests in 2.10s, 7.85MB read
+  Socket errors: connect 0, read 265, write 5845, timeout 0
+Requests/sec:   3225.32
+Transfer/sec:      3.73MB

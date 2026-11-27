@@ -4,7 +4,7 @@
 
 - [x] Rust crate, pinned toolchain, lockfile, strict config parser, and `run`/`check`/`version` CLI.
 - [x] CI and dependency/license policy files.
-- [x] Linux x86-64 and ARM64 builds and CI evidence for PR commit `71810ea`: both GitHub Actions jobs passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hash comparisons on 2026-11-27.
+- [x] Linux x86-64 and ARM64 builds and CI evidence for PR commit `13fd6af`: both GitHub Actions jobs passed formatting, Clippy, locked tests, optimized builds, and clean repeat-build hash comparisons on 2026-11-27.
 
 ## M1 — HTTP proxy (implemented; broader validation remains)
 
@@ -22,7 +22,7 @@
 - [x] Local transport security integration tests.
 - [x] Negotiate HTTP/2 on TLS/TCP and serve HTTP/3 over QUIC/UDP on the configured numeric port; keep upstream requests on HTTP/1.1 and apply shared routing and bounds.
 - [x] Resolve external HTTP/3 client stream-reset report: Quinn trace identified an unconsumed request receive stream being stopped with code 0 after an early upstream response. Relay now drains the receive side within body limits/timeouts; the early-response regression passes, and curl 8.21.0 received the full 1 KiB body and exited successfully on WSL2 ARM64. Smoke output: `docs/perf-results/2026-11-27-wsl-arm64-h3-curl-smoke.txt`. `h2load --h3` produces zero requests in this environment; diagnostic curl-based H3 throughput is recorded in `docs/perf-results/2026-11-27-wsl-arm64-http3-curl-comparison.txt`.
-- [x] Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and repeat-build checks on PR commit `71810ea`.
+- [x] Linux x86-64 and ARM64 CI passed formatting, Clippy, locked tests, optimized builds, and repeat-build checks on PR commit `13fd6af`.
 - [ ] Complete an external independent security review before the first production release.
 
 ## M3 — Hardening (in progress)
@@ -30,12 +30,12 @@
 - [x] Fuzz configuration/routing and protocol-facing policy paths with checked-in seed corpus and scheduled CI. On WSL2 ARM64, 30-second bounded runs completed without crashes: `config_routes` 42,073 runs (42 seconds including shutdown), `host_normalization` 955,933 runs (31 seconds), and `header_policy` 198,015 runs (32 seconds); [raw output](docs/perf-results/2026-11-27-wsl-arm64-fuzz-smoke.txt).
 - [x] Run locked dependency advisory/license checks and review the direct dependency/features policy; first-party unsafe Rust remains forbidden. Replace the unmaintained PEM parser with `rustls-pki-types`.
 - [x] Add a focused regression proving a canceled upstream exchange is not retried.
-- [x] Run three-repeat normal and connection-cap stress profiles plus SIGTERM cleanup under 256-client load on both GitHub-hosted Linux architectures, including after HTTP/2/HTTP/3 integration. PR commit `71810ea` completed all profiles and both shutdown checks. Relay recorded no cap-run request timeouts; NGINX had client read errors in capped runs. Separate WSL runs showed high variance; all raw results are in `docs/perf-results/` and `docs/release-evidence/`.
+- [x] Run three-repeat normal and connection-cap stress profiles plus SIGTERM cleanup under 256-client load on both GitHub-hosted Linux architectures, including after HTTP/2/HTTP/3 integration. PR commit `13fd6af` completed all profiles and both shutdown checks; the three-repeat TLS 1.3 harness also completed on both architectures. Raw output is in `docs/perf-results/2026-11-27-github-actions-13fd6af-*.txt`. These hosted VM results remain diagnostic, not representative physical-host characterization.
 - [x] Update security model and deployment guidance to state verified behavior and remaining release gaps.
 
 ## M4 — Release candidate (not started)
 
-- [x] Linux x86-64/ARM64 optimized builds and clean repeat-build hash checks passed in CI on PR commit `71810ea`.
+- [x] Linux x86-64/ARM64 optimized builds and clean repeat-build hash checks passed in CI on PR commit `13fd6af`.
 - [ ] Complete performance characterization on representative physical hosts, including binary size, memory, CPU, startup, TLS handshakes, and connection scaling. WSL2 smoke measurements now exist; they show startup and p99 overhead above provisional targets and do not satisfy this gate.
 - [ ] Complete native-host competitor benchmarks for HTTP/1.1, HTTP/2, and HTTP/3 where supported. Diagnostic WSL2 H1/H2 results and a three-repeat curl H3 comparison are recorded against Caddy, NGINX, and Apache (H3 unavailable in the installed Apache build). NGINX HTTP/2 was inconsistent. Representative physical-host runs remain open.
 - [ ] Run the protected-tag workflow and verify the SBOM, checksums, provenance attestations, and signed release artifacts from a clean environment. No tagged artifact has been verified.

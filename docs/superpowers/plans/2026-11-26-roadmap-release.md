@@ -49,7 +49,7 @@
 
 **Files:** `tests/proxy.rs`, `scripts/load/`, `.github/workflows/benchmark.yml`, `docs/PERFORMANCE.md`
 
-- [x] Add regressions for connection admission and capacity recovery after body completion and stalled downstream writes. A focused upstream cancellation regression remains open.
+- [x] Add regressions for connection admission, capacity recovery after body completion/stalled downstream writes, and no retry after a canceled upstream exchange.
 - [ ] Add equivalent load configurations for Relay, NGINX, HAProxy, Caddy, and Pingora. A repeatable Relay/NGINX harness is implemented; HAProxy, Caddy, and Pingora are outstanding.
 - [ ] Run comparative tests on native Linux x86-64 and ARM64; one WSL ARM64 smoke result is recorded but is not release evidence.
 

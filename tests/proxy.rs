@@ -589,6 +589,30 @@ async fn times_out_when_upstream_does_not_start_a_response() {
 }
 
 #[tokio::test]
+async fn does_not_retry_a_canceled_upstream_exchange() {
+    let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let relay_addr =
+        relay_with_limits(upstream.local_addr().unwrap(), "response_timeout_ms = 100").await;
+    let client = tokio::spawn(request(relay_addr, "example.org", ""));
+    let (mut first_exchange, _) = tokio::time::timeout(Duration::from_secs(1), upstream.accept())
+        .await
+        .expect("proxy did not open the upstream exchange")
+        .unwrap();
+    let mut request_bytes = [0; 1024];
+    let _ = first_exchange.read(&mut request_bytes).await.unwrap();
+    let response = client.await.unwrap();
+    assert!(response.contains("504"), "unexpected response: {response}");
+
+    drop(first_exchange);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(300), upstream.accept())
+            .await
+            .is_err(),
+        "canceled upstream request was retried on another connection"
+    );
+}
+
+#[tokio::test]
 async fn ends_a_stalled_response_body_after_the_body_idle_deadline() {
     let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let upstream_addr = upstream.local_addr().unwrap();

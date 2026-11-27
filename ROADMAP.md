@@ -26,7 +26,8 @@
 
 - [x] Fuzz configuration/routing and protocol-facing policy paths with checked-in seed corpus and scheduled CI; bounded local smoke runs pass on ARM64.
 - [x] Run locked dependency advisory/license checks and review the direct dependency/features policy; first-party unsafe Rust remains forbidden. Replace the unmaintained PEM parser with `rustls-pki-types`.
-- [ ] Add focused cancellation regression and sustained stress checks for limits and cleanup under load.
+- [x] Add a focused regression proving a canceled upstream exchange is not retried.
+- [ ] Run sustained stress checks for configured limits and cleanup under load.
 - [x] Update security model and deployment guidance to state verified behavior and remaining release gaps.
 
 ## M4 — Release candidate (not started)

@@ -1,8 +1,10 @@
 use std::{
     convert::Infallible,
+    io::{self, Write},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
+        Mutex,
     },
     time::Duration,
 };
@@ -17,6 +19,19 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
+
+struct SharedLog(Arc<Mutex<Vec<u8>>>);
+
+impl Write for SharedLog {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 async fn start_relay(upstream: std::net::SocketAddr) -> std::net::SocketAddr {
     let text = format!(
@@ -95,6 +110,42 @@ async fn relay_with_limits(upstream: std::net::SocketAddr, limits: &str) -> std:
         std::future::pending::<()>(),
     )));
     addr
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn request_failure_logs_exclude_sensitive_request_values() {
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let writer = {
+        let captured = captured.clone();
+        move || SharedLog(captured.clone())
+    };
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_max_level(tracing::Level::DEBUG)
+        .with_writer(writer)
+        .finish();
+    let _subscriber = tracing::subscriber::set_default(&subscriber);
+
+    let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let upstream_addr = upstream.local_addr().unwrap();
+    drop(upstream);
+    let relay = start_relay(upstream_addr).await;
+
+    let request = b"POST /redaction-path?query=query-sentinel HTTP/1.1\r\nHost: example.org\r\nAuthorization: Bearer credential-sentinel\r\nCookie: session=cookie-sentinel\r\nX-Private: header-sentinel\r\nContent-Length: 13\r\nConnection: close\r\n\r\nbody-sentinel";
+    let response = raw_request(relay, request).await;
+    assert!(response.contains("502"));
+
+    let logs = String::from_utf8(captured.lock().unwrap().clone()).unwrap();
+    assert!(logs.contains("upstream request failed"));
+    for sentinel in [
+        "query-sentinel",
+        "credential-sentinel",
+        "cookie-sentinel",
+        "header-sentinel",
+        "body-sentinel",
+    ] {
+        assert!(!logs.contains(sentinel), "log leaked {sentinel}: {logs}");
+    }
 }
 
 #[tokio::test]
